@@ -1,0 +1,6 @@
+bertviz/setup.py
+bertviz.egg-info/PKG-INFO
+bertviz.egg-info/SOURCES.txt
+bertviz.egg-info/dependency_links.txt
+bertviz.egg-info/requires.txt
+bertviz.egg-info/top_level.txt

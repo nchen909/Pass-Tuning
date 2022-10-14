@@ -1,0 +1,7 @@
+transformers>=2.0
+torch>=1.0
+tqdm
+boto3
+requests
+regex
+sentencepiece
