@@ -1,6 +1,6 @@
 from utils import (get_filenames, get_elapse_time,
                    load_and_cache_gen_data, get_ast_nx, format_attention, num_layers,
-                   index_to_code_token, format_special_chars, is_frequent_type,top_n_scores)
+                   index_to_code_token, format_special_chars, is_frequent_type,top_n_scores,get_lang_by_task)
 from models import bulid_or_load_gen_model
 from configs import add_args, set_dist, set_seed, set_hyperparas
 
@@ -456,7 +456,7 @@ def main():
 
     logger.info(args)
 
-    if args.task in ['summarize', 'translate']:
+    if args.task in ['summarize', 'translate', 'refine', 'generate', 'defect', 'clone']:
         config, model, tokenizer = bulid_or_load_gen_model(args)
 
     model_dict = os.path.join(
@@ -481,9 +481,13 @@ def main():
             '/data/code/tree-sitter/tree-sitter-python',
             '/data/code/tree-sitter/tree-sitter-java',
             '/data/code/tree-sitter/tree-sitter-php',
+            '/data/code/tree-sitter/tree-sitter-c-sharp',
+            '/data/code/tree-sitter/tree-sitter-c',
         ]
     )
-    language = Language('build/my-language.so', args.sub_task)
+
+    args.lang = get_lang_by_task(args.task, args.sub_task)
+    language = Language('build/my-language.so', args.lang)
     parser = Parser()
     parser.set_language(language)
 

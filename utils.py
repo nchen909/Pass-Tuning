@@ -17,7 +17,20 @@ import tokenize
 
 logger = logging.getLogger(__name__)
 
-
+def get_lang_by_task(task, sub_task):
+    if task in ['summarize','complete']:
+        return sub_task
+    elif task in ['refine','generate','clone']:
+        return 'java'
+    elif task == 'translate':
+        if sub_task == 'cs-java':
+            return 'c_sharp'
+        else:
+            return 'java'
+    elif task == 'defect':
+        return 'c'
+    else:
+        raise 'java'
 def add_lang_by_task(target_str, task, sub_task):
     if task == 'summarize':
         target_str = '<en> ' + target_str
@@ -368,7 +381,7 @@ def load_and_cache_multi_gen_data(args, split_tag, pool, tokenizer, encode_targe
     else:
         examples_data_dict = {}
 
-        task_list = ['summarize', 'translate', 'refine', 'generate', 'defect']
+        task_list = ['summarize', 'translate', 'refine', 'generate', 'defect', 'clone']
         for task in task_list:
             if task == 'summarize':
                 sub_tasks = ['ruby', 'javascript',
@@ -401,6 +414,9 @@ def load_and_cache_multi_gen_data(args, split_tag, pool, tokenizer, encode_targe
                 elif task == 'defect':
                     args.max_source_length = 512
                     args.max_target_length = 3  # as do not need to add lang ids
+                elif task == 'clone':
+                    args.max_source_length = 256
+                    args.max_target_length = 256
 
                 filename = get_filenames(
                     args.data_dir, args.task, args.sub_task, split_tag)

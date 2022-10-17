@@ -15,7 +15,7 @@ from tqdm import tqdm
 
 from configs import add_args, set_dist, set_seed, set_hyperparas
 from models import bulid_or_load_gen_model
-from utils import get_filenames, get_elapse_time, load_and_cache_gen_data, num_layers, format_attention
+from utils import get_filenames, get_elapse_time, load_and_cache_gen_data, num_layers, format_attention, get_lang_by_task
 from evaluator import smooth_bleu
 from evaluator.CodeBLEU import calc_code_bleu
 from evaluator.bleu import _bleu
@@ -142,7 +142,8 @@ def eval_bleu_epoch(args, eval_data, eval_examples, model, tokenizer, split_tag,
                 goldMap, predictionMap)[0], 2)
         else:
             bleu = round(_bleu(gold_fn, output_fn), 2)
-            if split_tag == 'test' and args.task in ['refine', 'translate', 'generate']:
+            if split_tag == 'test' and args.task in ['refine', 'translate', 'generate' , 'clone', 'defect']:
+                args.lang = get_lang_by_task(args.task, args.sub_task)
                 codebleu = calc_code_bleu.get_codebleu(
                     gold_fn, output_fn, args.lang)
         # except:
@@ -188,7 +189,7 @@ def main():
 #     parser.set_language(language)
 
     
-    if args.task in ['summarize', 'translate','generate']:
+    if args.task in ['summarize', 'translate', 'refine', 'generate', 'defect']:
         config, model, tokenizer = bulid_or_load_gen_model(args)
 
     model.to(args.device)
@@ -405,7 +406,7 @@ def main():
                     else:
                         not_bleu_em_inc_cnt += 1
                         logger.info(
-                            "Bleu does not increase for %d epochs", not_bleu_em_inc_cnt)
+                            "Bleu_em does not increase for %d epochs", not_bleu_em_inc_cnt)
                         if all([x > args.patience for x in [not_bleu_em_inc_cnt, not_loss_dec_cnt]]):
                             stop_early_str = "[%d] Early stop as not_bleu_em_inc_cnt=%d, and not_loss_dec_cnt=%d\n" % (
                                 cur_epoch, not_bleu_em_inc_cnt, not_loss_dec_cnt)

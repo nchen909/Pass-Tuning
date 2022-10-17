@@ -7,7 +7,7 @@ from evaluator.CodeBLEU import bleu, weighted_ngram_match, syntax_match, dataflo
 # import evaluator.CodeBLEU.weighted_ngram_match
 # import evaluator.CodeBLEU.syntax_match
 # import evaluator.CodeBLEU.dataflow_match
-
+from utils import get_lang_by_task
 
 def get_codebleu(refs, hyp, lang, params='0.25,0.25,0.25,0.25'):
     if not isinstance(refs, list):
@@ -36,7 +36,7 @@ def get_codebleu(refs, hyp, lang, params='0.25,0.25,0.25,0.25'):
     ngram_match_score = bleu.corpus_bleu(tokenized_refs, tokenized_hyps)
 
     # calculate weighted ngram match
-    keywords = [x.strip() for x in open('/export/share/wang.y/workspace/CodeT5Full/finetune/evaluator/CodeBLEU/keywords/' + lang + '.txt', 'r', encoding='utf-8').readlines()]
+    keywords = [x.strip() for x in open('/data/pretrain-attention/CodePrompt/evaluator/CodeBLEU/keywords/' + lang + '.txt', 'r', encoding='utf-8').readlines()]
 
     def make_weights(reference_tokens, key_word_list):
         return {token: 1 if token in key_word_list else 0.2 for token in reference_tokens}
@@ -76,5 +76,6 @@ if __name__ == '__main__':
                         help='alpha, beta and gamma')
 
     args = parser.parse_args()
+    args.lang = get_lang_by_task(args.task, args.sub_task)
     code_bleu_score = get_codebleu(args.refs, args.hyp, args.lang, args.params)
     print('CodeBLEU score: ', code_bleu_score)

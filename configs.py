@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 def add_args(parser):
     parser.add_argument("--task", type=str, required=True,
-                        choices=['summarize', 'refine', 'translate', 'generate', 'clone', 'defect'])
+                        choices=['summarize', 'translate', 'refine', 'generate', 'defect', 'clone'])# without complete
     parser.add_argument("--sub_task", type=str, default='')
     parser.add_argument("--add_lang_ids", action='store_true')
     # plbart unfinished
@@ -118,38 +118,38 @@ def set_hyperparas(args):
         args.lr = 5e-5
         args.max_source_length = 256
         args.max_target_length = 128
-        args.num_train_epochs = 15
+        args.num_train_epochs = 15 #10 *1.5
         args.patience = 2
         args.weight_decay = 0.0
         args.warmup_steps = 1000
 
         if args.model_name in ['roberta', 'codebert', 'graphcodebert','unixcoder']:
-            args.batch_size = 48
+            args.batch_size = 48 #32*1.5
         elif args.model_name in ['t5', 'codet5']:
             args.batch_size = 32
         elif args.model_name in ['bart', 'plbart']:
             args.batch_size = 48
     elif args.task == 'translate':
         args.adam_epsilon = 1e-8
-        args.beam_size = 10
+        args.beam_size = 5
         args.gradient_accumulation_steps = 1
         args.lr = 5e-5
         args.max_source_length = 320
         args.max_target_length = 256
-        args.num_train_epochs = 5
+        args.num_train_epochs = 15
         args.patience = 2
         args.weight_decay = 0.0
         args.warmup_steps = 1000
 
         if args.model_name in ['roberta', 'codebert', 'graphcodebert','unixcoder']:
-            args.batch_size = 48
+            args.batch_size = 32
         elif args.model_name in ['t5', 'codet5']:
             args.batch_size = 32
         elif args.model_name in ['bart', 'plbart']:
-            args.batch_size = 48
+            args.batch_size = 32
     elif args.task == 'refine':
         args.adam_epsilon = 1e-8
-        args.beam_size = 10
+        args.beam_size = 5
         args.gradient_accumulation_steps = 1
         args.lr = 5e-5
         if args.sub_task == 'small':
@@ -158,17 +158,17 @@ def set_hyperparas(args):
         else:
             args.max_source_length = 240
             args.max_target_length = 240
-        args.num_train_epochs = 5
+        args.num_train_epochs = 15
         args.patience = 2
         args.weight_decay = 0.0
         args.warmup_steps = 1000
 
         if args.model_name in ['roberta', 'codebert', 'graphcodebert','unixcoder']:
-            args.batch_size = 48
+            args.batch_size = 32
         elif args.model_name in ['t5', 'codet5']:
             args.batch_size = 32
         elif args.model_name in ['bart', 'plbart']:
-            args.batch_size = 48
+            args.batch_size = 32
     elif args.task == 'generate':
         args.adam_epsilon = 1e-8
         args.beam_size = 10
@@ -177,7 +177,7 @@ def set_hyperparas(args):
         args.max_source_length = 320
         args.max_target_length = 150
         args.num_train_epochs = 30
-        args.patience = 2
+        args.patience = 4
         args.weight_decay = 0.0
         args.warmup_steps = 1000
 
@@ -191,10 +191,10 @@ def set_hyperparas(args):
         args.adam_epsilon = 1e-8
         args.beam_size = 10
         args.gradient_accumulation_steps = 1
-        args.lr = 5e-5
+        args.lr = 2e-5
         args.max_source_length = 512
         args.max_target_length = 3  # as do not need to add lang ids
-        args.num_train_epochs = 5
+        args.num_train_epochs = 10
         args.patience = 2
         args.weight_decay = 0.0
         args.warmup_steps = 1000
@@ -205,3 +205,39 @@ def set_hyperparas(args):
             args.batch_size = 32
         elif args.model_name in ['bart', 'plbart']:
             args.batch_size = 48
+    elif args.task == 'clone':
+        args.adam_epsilon = 1e-8
+        args.beam_size = 10
+        args.gradient_accumulation_steps = 1
+        args.lr = 5e-5
+        args.max_source_length = 256
+        args.max_target_length = 256
+        args.num_train_epochs = 5
+        args.patience = 2
+        args.weight_decay = 0.0
+        args.warmup_steps = 1000
+
+        if args.model_name in ['roberta', 'codebert', 'graphcodebert','unixcoder']:
+            args.batch_size = 32
+        elif args.model_name in ['t5', 'codet5']:
+            args.batch_size = 32
+        elif args.model_name in ['bart', 'plbart']:
+            args.batch_size = 32
+    elif args.task == 'complete':
+        args.adam_epsilon = 1e-8
+        args.beam_size = 10
+        args.gradient_accumulation_steps = 1
+        args.lr = 8e-5
+        args.max_source_length = 256
+        args.max_target_length = 256
+        args.num_train_epochs = 10
+        args.patience = 2
+        args.weight_decay = 0.0
+        args.warmup_steps = 1000
+
+        if args.model_name in ['roberta', 'codebert', 'graphcodebert','unixcoder']:
+            args.batch_size = 32
+        elif args.model_name in ['t5', 'codet5']:
+            args.batch_size = 32
+        elif args.model_name in ['bart', 'plbart']:
+            args.batch_size = 32
