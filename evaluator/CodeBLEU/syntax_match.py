@@ -26,7 +26,8 @@ def calc_syntax_match(references, candidate, lang):
 
 
 def corpus_syntax_match(references, candidates, lang):
-    JAVA_LANGUAGE = Language('{}/my-languages.so'.format(parser_path), lang)
+    #JAVA_LANGUAGE = Language('{}/my-languages.so'.format(parser_path), lang)
+    JAVA_LANGUAGE = Language('build/my-languages.so', lang)
     parser = Parser()
     parser.set_language(JAVA_LANGUAGE)
     match_count = 0

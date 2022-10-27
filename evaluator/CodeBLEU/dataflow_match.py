@@ -27,7 +27,8 @@ def calc_dataflow_match(references, candidate, lang):
 
 
 def corpus_dataflow_match(references, candidates, lang):
-    LANGUAGE = Language('{}/my-languages.so'.format(parser_path), lang)
+    #LANGUAGE = Language('{}/my-languages.so'.format(parser_path), lang)
+    LANGUAGE = Language('build/my-languages.so', lang)
     parser = Parser()
     parser.set_language(LANGUAGE)
     parser = [parser, dfg_function[lang]]

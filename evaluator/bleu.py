@@ -118,7 +118,7 @@ def _bleu(ref_file, trans_file, subword_option=None):
     ref_files = [ref_file]
     reference_text = []
     for reference_filename in ref_files:
-        with open(reference_filename) as fh:
+        with open(reference_filename,encoding='utf-8') as fh:
             reference_text.append(fh.readlines())
     per_segment_references = []
     for references in zip(*reference_text):
@@ -127,7 +127,7 @@ def _bleu(ref_file, trans_file, subword_option=None):
             reference_list.append(reference.strip().split())
         per_segment_references.append(reference_list)
     translations = []
-    with open(trans_file) as fh:
+    with open(trans_file,encoding='utf-8') as fh:
         for line in fh:
             translations.append(line.strip().split())
     bleu_score, _, _, _, _, _ = compute_bleu(per_segment_references, translations, max_order, smooth)

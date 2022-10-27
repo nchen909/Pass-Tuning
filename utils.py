@@ -13,8 +13,8 @@ import networkx as nx
 import re
 from io import StringIO
 import tokenize
-
-
+from functools import partial
+from torch.utils.data import DataLoader, Dataset, SequentialSampler, RandomSampler,TensorDataset
 logger = logging.getLogger(__name__)
 
 def get_lang_by_task(task, sub_task):
@@ -48,7 +48,7 @@ def add_lang_by_task(target_str, task, sub_task):
     return target_str
 
 
-def convert_examples_to_features(item):
+def convert_examples_to_features(args,item):
     example, example_index, tokenizer, args, stage = item
 
     if args.model_name in ['t5', 'codet5'] and args.add_task_prefix:
@@ -57,31 +57,51 @@ def convert_examples_to_features(item):
                 args.task, args.sub_task, example.source)
         else:
             source_str = "{}: {}".format(args.task, example.source)
+    elif args.model_name in ['unixcoder'] and args.task == 'complete':
+        source_str = format_special_chars(tokenizer.tokenize(example.source[:args.max_source_length-3]))
+        source_str =[tokenizer.sep_token,"<decoder-only>",tokenizer.sep_token]+source_str
+    elif args.model_name in ['unixcoder']:
+        source_str = format_special_chars(tokenizer.tokenize(example.source[:args.max_source_length-5]))
+        source_str =[tokenizer.cls_token,"<encoder-decoder>",tokenizer.sep_token]+source_str+["<mask0>",tokenizer.sep_token]
+        # in https://github.com/microsoft/CodeBERT when args.task == 'summarize' they put <mask0> before source_str, which performs not better
     else:
         source_str = example.source
 
-    source_str = source_str.replace('</s>', '<unk>')
-    source_ids = tokenizer.encode(
-        source_str, max_length=args.max_source_length, padding='max_length', truncation=True)
-    assert source_ids.count(tokenizer.eos_token_id) == 1
+    if args.model_name in ['unixcoder']:
+        source_ids = tokenizer.convert_tokens_to_ids(source_str) 
+        padding_length = args.max_source_length - len(source_ids)
+        source_ids += [tokenizer.pad_token_id]*padding_length
+    else:
+        source_str = source_str.replace('</s>', '<unk>')
+        source_ids = tokenizer.encode(
+            source_str, max_length=args.max_source_length, padding='max_length', truncation=True)
+        assert source_ids.count(tokenizer.eos_token_id) == 1
     if stage == 'test':
         target_ids = []
+        if args.model_name in ['unixcoder'] and args.task != 'complete':
+            target_str = tokenizer.tokenize("None")
+            target_str = ["<mask0>"] + target_str + [tokenizer.sep_token]            
+            target_ids = tokenizer.convert_tokens_to_ids(target_str)
+            padding_length = args.max_target_length - len(target_ids)
+            target_ids += [tokenizer.pad_token_id] * padding_length
     else:
-        target_str = example.target
+        if args.model_name in ['unixcoder']:
+            target_str = format_special_chars(tokenizer.tokenize(example.target)[:args.max_target_length-2])
+        else:
+            target_str = example.target
         if args.add_lang_ids:
             target_str = add_lang_by_task(
                 example.target, args.task, args.sub_task)
-        if args.task in ['defect', 'clone']:
-            if target_str == 0:
-                target_str = 'false'
-            elif target_str == 1:
-                target_str = 'true'
-            else:
-                raise NameError
-        target_str = target_str.replace('</s>', '<unk>')
-        target_ids = tokenizer.encode(target_str, max_length=args.max_target_length, padding='max_length',
-                                      truncation=True)
-        assert target_ids.count(tokenizer.eos_token_id) == 1
+        if args.model_name in ['unixcoder'] and args.task != 'complete':
+            target_str = ["<mask0>"] + target_str + [tokenizer.sep_token]            
+            target_ids = tokenizer.convert_tokens_to_ids(target_str)
+            padding_length = args.max_target_length - len(target_ids)
+            target_ids += [tokenizer.pad_token_id] * padding_length
+        else:
+            target_str = target_str.replace('</s>', '<unk>')
+            target_ids = tokenizer.encode(target_str, max_length=args.max_target_length, padding='max_length',
+                                        truncation=True)
+            assert target_ids.count(tokenizer.eos_token_id) == 1
 
     return InputFeatures(
         example_index,
@@ -91,21 +111,55 @@ def convert_examples_to_features(item):
     )
 
 
-def convert_clone_examples_to_features(item):
+def convert_clone_examples_to_features(args,item):
     example, example_index, tokenizer, args = item
     if args.model_name in ['t5', 'codet5'] and args.add_task_prefix:
         source_str = "{}: {}".format(args.task, example.source)
         target_str = "{}: {}".format(args.task, example.target)
+    elif args.model_name in ['unixcoder']:
+        source_str = format_special_chars(tokenizer.tokenize(example.source[:args.max_source_length-4]))
+        source_str =[tokenizer.cls_token,"<encoder-only>",tokenizer.sep_token]+source_str+[tokenizer.sep_token]
+        target_str = format_special_chars(tokenizer.tokenize(example.target[:args.max_target_length-4]))
+        target_str =[tokenizer.cls_token,"<encoder-only>",tokenizer.sep_token]+target_str+[tokenizer.sep_token]
+        example_index = source_str + target_str
     else:
+        
         source_str = example.source
         target_str = example.target
-    code1 = tokenizer.encode(
-        source_str, max_length=args.block_size, padding='max_length', truncation=True)
-    code2 = tokenizer.encode(
-        target_str, max_length=args.block_size, padding='max_length', truncation=True)
-    source_ids = code1 + code2
+    if args.model_name in ['unixcoder']:
+        code1 = tokenizer.convert_tokens_to_ids(source_str)
+        padding_length = args.max_source_length - len(code1)
+        code1 += [tokenizer.pad_token_id]*padding_length
+        
+        code2 = tokenizer.convert_tokens_to_ids(target_str)
+        padding_length = args.max_source_length - len(code2)
+        code2 += [tokenizer.pad_token_id]*padding_length
+        source_ids = code1 + code2
+    else:
+        code1 = tokenizer.encode(
+            source_str, max_length=args.max_source_length, padding='max_length', truncation=True)
+        code2 = tokenizer.encode(
+            target_str, max_length=args.max_target_length, padding='max_length', truncation=True)
+        source_ids = code1 + code2
     return CloneInputFeatures(example_index, source_ids, example.label, example.url1, example.url2)
 
+
+def convert_defect_examples_to_features(args,item):
+    example, example_index, tokenizer, args = item
+    if args.model_name in ['t5', 'codet5'] and args.add_task_prefix:
+        source_str = "{}: {}".format(args.task, example.source)
+    elif args.model_name in ['unixcoder']:
+        source_str = format_special_chars(tokenizer.tokenize(example.source[:args.max_source_length-4]))
+        source_str =[tokenizer.cls_token,"<encoder-only>",tokenizer.sep_token]+source_str+[tokenizer.sep_token]
+    else:
+        source_str = example.source
+    if args.model_name in ['unixcoder']:
+        code = tokenizer.convert_tokens_to_ids(source_str)
+        padding_length = args.max_source_length - len(code)
+        code += [tokenizer.pad_token_id]*padding_length
+    else:
+        code = tokenizer.encode(source_str, max_length=args.max_source_length, padding='max_length', truncation=True)
+    return DefectInputFeatures(example_index, code, example.target)
 
 class CloneInputFeatures(object):
     """A single training/test features for a example."""
@@ -123,6 +177,17 @@ class CloneInputFeatures(object):
         self.url1 = url1
         self.url2 = url2
 
+class DefectInputFeatures(object):
+    """A single training/test features for a example."""
+
+    def __init__(self,
+                 example_id,
+                 source_ids,
+                 label
+                 ):
+        self.example_id = example_id
+        self.source_ids = source_ids
+        self.label = label
 
 class InputFeatures(object):
     """A single training/test features for a example."""
@@ -336,18 +401,18 @@ def load_and_cache_gen_data(args, filename, pool, tokenizer, split_tag, only_src
                                  split_tag + ('_src' if only_src else '') + data_tag)
 
     examples = read_examples(filename, args.data_num, args.task)
-
+    args.warmup_steps = len(examples) / 100
     if is_sample and is_attention:
-        examples = random.sample(examples, min(3000, len(examples)))
+        examples = random.sample(examples, min(3000, len(examples)) if args.few_shot == -1 else args.few_shot)
 
-    if is_sample:
-        examples = random.sample(examples, min(5000, len(examples)))
-
+    if is_sample or args.few_shot != -1:
+        examples = random.sample(examples, min(5000, len(examples)) if args.few_shot == -1 else args.few_shot)
+    
     if split_tag == 'train':
         calc_stats(examples, tokenizer, is_tokenize=True)
     else:
         calc_stats(examples)
-    if os.path.exists(cache_fn) and not is_sample:
+    if os.path.exists(cache_fn) and not is_sample and args.few_shot == -1:
         logger.info("Load cache data from %s", cache_fn)
         data = torch.load(cache_fn)
     else:
@@ -358,7 +423,8 @@ def load_and_cache_gen_data(args, filename, pool, tokenizer, split_tag, only_src
             logger.info("Create cache data into %s", cache_fn)
         tuple_examples = [(example, idx, tokenizer, args, split_tag)
                           for idx, example in enumerate(examples)]
-        features = pool.map(convert_examples_to_features, tqdm(
+        f_=partial(convert_examples_to_features,args)
+        features = pool.map(f_, tqdm(
             tuple_examples, total=len(tuple_examples)))
         all_source_ids = torch.tensor(
             [f.source_ids for f in features], dtype=torch.long)
@@ -368,7 +434,7 @@ def load_and_cache_gen_data(args, filename, pool, tokenizer, split_tag, only_src
             all_target_ids = torch.tensor(
                 [f.target_ids for f in features], dtype=torch.long)
             data = TensorDataset(all_source_ids, all_target_ids)
-        if args.local_rank in [-1, 0] and not is_sample:
+        if args.local_rank in [-1, 0] and not is_sample and args.few_shot == -1:
             torch.save(data, cache_fn)
     return examples, data
 
@@ -431,11 +497,12 @@ def load_and_cache_multi_gen_data(args, split_tag, pool, tokenizer, encode_targe
 
                 tuple_examples = [(example, idx, tokenizer, args, split_tag)
                                   for idx, example in enumerate(examples)]
+                f_=partial(convert_examples_to_features,args)
                 if args.data_num == -1:
-                    features = pool.map(convert_examples_to_features, tqdm(
+                    features = pool.map(f_, tqdm(
                         tuple_examples, total=len(tuple_examples)))
                 else:
-                    features = [convert_examples_to_features(
+                    features = [f_(
                         x) for x in tuple_examples]
                 all_source_ids = torch.tensor(
                     [f.source_ids for f in features], dtype=torch.long)
@@ -453,16 +520,95 @@ def load_and_cache_multi_gen_data(args, split_tag, pool, tokenizer, encode_targe
             logger.info("Save data into %s", cache_fn)
     return examples_data_dict
 
+class TextDataset_POJ104(Dataset):
+    def __init__(self, tokenizer, args, file_path=None):
+        # super(TensorDataset, self).__init__(tokenizer, args, file_path)
+        self.examples = []
+        data = []
+        with open(file_path) as f:
+            for line in f:
+                line = line.strip()
+                js = json.loads(line)
+                data.append(js)
+        for js in data:
+            self.examples.append(convert_examples_to_features(js,tokenizer,args))
+        if 'train' in file_path:
+            for idx, example in enumerate(self.examples[:3]):
+                    logger.info("*** Example ***")
+                    logger.info("idx: {}".format(idx))
+                    logger.info("label: {}".format(example.label))
+                    logger.info("input_tokens: {}".format([x.replace('\u0120','_') for x in example.input_tokens]))
+                    logger.info("input_ids: {}".format(' '.join(map(str, example.input_ids))))
+        self.label_examples = {}
+        for e in self.examples:
+            if e.label not in self.label_examples:
+                self.label_examples[e.label]=[]
+            self.label_examples[e.label].append(e)
+        
+    def __len__(self):
+        return len(self.examples)
+
+    def __getitem__(self, i):   
+        label = self.examples[i].label
+        index = self.examples[i].index
+        labels = list(self.label_examples)
+        labels.remove(label)
+        while True:
+            shuffle_example = random.sample(self.label_examples[label],1)[0]
+            if shuffle_example.index != index:
+                p_example = shuffle_example
+                break
+        n_example = random.sample(self.label_examples[random.sample(labels,1)[0]],1)[0]
+        
+        return (torch.tensor(self.examples[i].input_ids),torch.tensor(p_example.input_ids),
+                torch.tensor(n_example.input_ids),torch.tensor(label))
+
+# class TextDataset2(Dataset):
+#     def __init__(self, features, args):
+#         # super(TensorDataset, self).__init__(tokenizer, args, file_path)
+#         self.examples = features
+#         self.label_examples = {}
+#         for e in self.examples:
+#             if e.label not in self.label_examples:
+#                 self.label_examples[e.label]=[]
+#             self.label_examples[e.label].append(e)
+        
+#     def __len__(self):
+#         return len(self.examples)
+
+#     def __getitem__(self, i):   
+#         label = self.examples[i].label
+#         index = self.examples[i].example_id
+#         labels = list(self.label_examples)
+#         labels.remove(label)
+#         while True:
+#             shuffle_example = random.sample(self.label_examples[label],1)[0]
+#             if shuffle_example.example_id != index:
+#                 p_example = shuffle_example
+#                 break
+#         n_example = random.sample(self.label_examples[random.sample(labels,1)[0]],1)[0]
+        
+#         return (torch.tensor(self.examples[i].source_ids),torch.tensor(p_example.source_ids),
+#                 torch.tensor(n_example.source_ids),torch.tensor(label))
+class TextDataset_BCB(Dataset):
+    def __init__(self, features, args):
+        self.examples = features
+    def __len__(self):
+        return len(self.examples)
+
+    def __getitem__(self, item):
+        return torch.tensor(self.examples[item].source_ids),torch.tensor(self.examples[item].label)
 
 def load_and_cache_clone_data(args, filename, pool, tokenizer, split_tag, is_sample=False):
+
     cache_fn = '{}/{}.pt'.format(args.cache_path, split_tag +
-                                 '_all' if args.data_num == -1 else '_%d' % args.data_num)
+                                '_all' if args.data_num == -1 else '_%d' % args.data_num)
     examples = read_examples(filename, args.data_num, args.task)
-    if is_sample:
-        examples = random.sample(examples, int(len(examples) * 0.1))
+    if is_sample or args.few_shot != -1:
+        examples = random.sample(examples, int(len(examples) * 0.1) if args.few_shot == -1 else args.few_shot)
 
     calc_stats(examples, tokenizer, is_tokenize=True)
-    if os.path.exists(cache_fn):
+    if os.path.exists(cache_fn) and args.few_shot == -1:
         logger.info("Load cache data from %s", cache_fn)
         data = torch.load(cache_fn)
     else:
@@ -471,20 +617,60 @@ def load_and_cache_clone_data(args, filename, pool, tokenizer, split_tag, is_sam
         elif args.data_num == -1:
             logger.info("Create cache data into %s", cache_fn)
         tuple_examples = [(example, idx, tokenizer, args)
-                          for idx, example in enumerate(examples)]
-        features = pool.map(convert_clone_examples_to_features, tqdm(
+                        for idx, example in enumerate(examples)]
+        f_=partial(convert_clone_examples_to_features,args)
+        features = pool.map(f_, tqdm(
             tuple_examples, total=len(tuple_examples)))
+        
+        # if args.sub_task == "POJ":
+        #     train_dataset = TextDataset_POJ104(features, args)
+        #     return train_dataset, train_dataset
         # features = [convert_clone_examples_to_features(x) for x in tuple_examples]
+        if args.model_name in ['unixcoder']:
+            train_dataset = TextDataset_BCB(features, args)
+            return examples, train_dataset
         all_source_ids = torch.tensor(
             [f.source_ids for f in features], dtype=torch.long)
         all_labels = torch.tensor(
             [f.label for f in features], dtype=torch.long)
         data = TensorDataset(all_source_ids, all_labels)
 
-        if args.local_rank in [-1, 0] and args.data_num == -1:
+        if args.local_rank in [-1, 0] and args.data_num == -1 and args.few_shot == -1:
             torch.save(data, cache_fn)
     return examples, data
 
+
+def load_and_cache_defect_data(args, filename, pool, tokenizer, split_tag, is_sample=False):
+    cache_fn = os.path.join(args.cache_path, split_tag)
+    examples = read_examples(filename, args.data_num, args.task)
+    if is_sample or args.few_shot != -1:
+        examples = random.sample(examples, int(len(examples) * 0.1)  if args.few_shot == -1 else args.few_shot)
+    calc_stats(examples, tokenizer, is_tokenize=True)
+    if os.path.exists(cache_fn) and args.few_shot == -1:
+        logger.info("Load cache data from %s", cache_fn)
+        data = torch.load(cache_fn)
+    else:
+        if is_sample:
+            logger.info("Sample 10 percent of data from %s", filename)
+        elif args.data_num == -1:
+            logger.info("Create cache data into %s", cache_fn)
+        tuple_examples = [(example, idx, tokenizer, args) for idx, example in enumerate(examples)]
+        f_=partial(convert_defect_examples_to_features,args)
+        features = pool.map(f_, tqdm(tuple_examples, total=len(tuple_examples)))
+        # if args.sub_task == "POJ":
+        #     train_dataset = TextDataset_POJ104(features, args)
+        #     return train_dataset, train_dataset
+        if args.model_name in ['unixcoder']:
+            train_dataset = TextDataset_BCB(features, args)
+            return examples, train_dataset
+        # features = [convert_clone_examples_to_features(x) for x in tuple_examples]
+        all_source_ids = torch.tensor([f.source_ids for f in features], dtype=torch.long)
+        all_labels = torch.tensor([f.label for f in features], dtype=torch.long)
+        data = TensorDataset(all_source_ids, all_labels)
+
+        if args.local_rank in [-1, 0] and args.data_num == -1 and args.few_shot == -1:
+            torch.save(data, cache_fn)
+    return examples, data
 
 def get_filenames(data_root, task, sub_task, split=''):
     if task == 'generate':

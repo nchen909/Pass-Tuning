@@ -164,7 +164,7 @@ def splitPuncts(line):
 def computeMaps(predictions, goldfile):
     predictionMap = {}
     goldMap = {}
-    gf = open(goldfile, 'r')
+    gf = open(goldfile, 'r',encoding='utf-8')
 
     for row in predictions:
         cols = row.strip().split('\t')
