@@ -69,15 +69,18 @@ def add_args(parser):
                         help="Batch size per GPU/CPU for training.")
     parser.add_argument("--attention_batch_size", default=100, type=int,
                         help="Batch size per GPU/CPU for computing attention.")
-    parser.add_argument('--layer_num', type=int, default=-1,
-                    help="layer which attention is concerned, -1 for last layer, else for all 0-11 layers")
-    parser.add_argument('--quantile_threshold', type=float, default=0.75,
-                    help="threshold of quantile which we concern attention should be gt and distance should be lt")
-    parser.add_argument('--frequent_type',  default=1, type=int, choices=[0,1],
-                    help="whether only use frequent_type")
-    parser.add_argument('--upgraded_ast',  default=1, type=int, choices=[0,1],
-                    help="whether to use upgraded ast")
-    
+    # parser.add_argument('--layer_num', type=int, default=-1,
+    #                 help="layer which attention is concerned, -1 for last layer, else for all 0-11 layers")
+    # parser.add_argument('--quantile_threshold', type=float, default=0.75,
+    #                 help="threshold of quantile which we concern attention should be gt and distance should be lt")
+    # parser.add_argument('--frequent_type',  default=1, type=int, choices=[0,1],
+    #                 help="whether only use frequent_type")
+    # parser.add_argument('--upgraded_ast',  default=1, type=int, choices=[0,1],
+    #                 help="whether to use upgraded ast")
+    parser.add_argument('--few_shot',  default=-1, type=int,
+                    help="use k shot, -1 for full data")
+    parser.add_argument('--prompt',  default=0, type=int, choices=[0,1],
+                help="whether to use upgraded ast")
     args = parser.parse_args()
     return args
 
@@ -111,6 +114,8 @@ def set_seed(args):
 
 
 def set_hyperparas(args):
+    # args.warmup_steps = 1000
+    args.few_shot = 200
     if args.task == 'summarize':
         args.adam_epsilon = 1e-8
         args.beam_size = 10
@@ -118,17 +123,17 @@ def set_hyperparas(args):
         args.lr = 5e-5
         args.max_source_length = 256
         args.max_target_length = 128
-        args.num_train_epochs = 15 #10 *1.5
-        args.patience = 2
+        args.num_train_epochs = 1 if args.few_shot == -1 else 1 #10 *1.5
+        args.patience = 2 if args.few_shot == -1 else 0
         args.weight_decay = 0.0
-        args.warmup_steps = 1000
+        
 
         if args.model_name in ['roberta', 'codebert', 'graphcodebert','unixcoder']:
-            args.batch_size = 48 #32*1.5
+            args.batch_size = 1 if args.few_shot == -1 else 4 #32*1.5
         elif args.model_name in ['t5', 'codet5']:
-            args.batch_size = 32
+            args.batch_size = 1 if args.few_shot == -1 else 4
         elif args.model_name in ['bart', 'plbart']:
-            args.batch_size = 48
+            args.batch_size = 1 if args.few_shot == -1 else 4
     elif args.task == 'translate':
         args.adam_epsilon = 1e-8
         args.beam_size = 5
@@ -136,17 +141,16 @@ def set_hyperparas(args):
         args.lr = 5e-5
         args.max_source_length = 320
         args.max_target_length = 256
-        args.num_train_epochs = 15
-        args.patience = 2
+        args.num_train_epochs = 1 if args.few_shot == -1 else 1
+        args.patience = 2 if args.few_shot == -1 else 0
         args.weight_decay = 0.0
-        args.warmup_steps = 1000
 
         if args.model_name in ['roberta', 'codebert', 'graphcodebert','unixcoder']:
-            args.batch_size = 16
+            args.batch_size = 1 if args.few_shot == -1 else 4
         elif args.model_name in ['t5', 'codet5']:
-            args.batch_size = 32
+            args.batch_size = 1 if args.few_shot == -1 else 4
         elif args.model_name in ['bart', 'plbart']:
-            args.batch_size = 32
+            args.batch_size = 1 if args.few_shot == -1 else 4
     elif args.task == 'refine':
         args.adam_epsilon = 1e-8
         args.beam_size = 5
@@ -158,17 +162,16 @@ def set_hyperparas(args):
         else:
             args.max_source_length = 240
             args.max_target_length = 240
-        args.num_train_epochs = 15
-        args.patience = 2
+        args.num_train_epochs = 1 if args.few_shot == -1 else 1
+        args.patience = 2 if args.few_shot == -1 else 0
         args.weight_decay = 0.0
-        args.warmup_steps = 1000
 
         if args.model_name in ['roberta', 'codebert', 'graphcodebert','unixcoder']:
-            args.batch_size = 32
+            args.batch_size = 1 if args.few_shot == -1 else 4
         elif args.model_name in ['t5', 'codet5']:
-            args.batch_size = 32
+            args.batch_size = 1 if args.few_shot == -1 else 4
         elif args.model_name in ['bart', 'plbart']:
-            args.batch_size = 32
+            args.batch_size = 1 if args.few_shot == -1 else 4
     elif args.task == 'generate':
         args.adam_epsilon = 1e-8
         args.beam_size = 10
@@ -176,53 +179,16 @@ def set_hyperparas(args):
         args.lr = 5e-5
         args.max_source_length = 320
         args.max_target_length = 150
-        args.num_train_epochs = 30
-        args.patience = 4
+        args.num_train_epochs = 1 if args.few_shot == -1 else 1
+        args.patience = 4 if args.few_shot == -1 else 0
         args.weight_decay = 0.0
-        args.warmup_steps = 1000
 
         if args.model_name in ['roberta', 'codebert', 'graphcodebert','unixcoder']:
-            args.batch_size = 32
+            args.batch_size = 1 if args.few_shot == -1 else 4
         elif args.model_name in ['t5', 'codet5']:
-            args.batch_size = 32
+            args.batch_size = 1 if args.few_shot == -1 else 4
         elif args.model_name in ['bart', 'plbart']:
-            args.batch_size = 32
-    elif args.task == 'defect':
-        args.adam_epsilon = 1e-8
-        args.beam_size = 10
-        args.gradient_accumulation_steps = 1
-        args.lr = 2e-5
-        args.max_source_length = 512
-        args.max_target_length = 3  # as do not need to add lang ids
-        args.num_train_epochs = 10
-        args.patience = 2
-        args.weight_decay = 0.0
-        args.warmup_steps = 1000
-
-        if args.model_name in ['roberta', 'codebert', 'graphcodebert','unixcoder']:
-            args.batch_size = 48
-        elif args.model_name in ['t5', 'codet5']:
-            args.batch_size = 32
-        elif args.model_name in ['bart', 'plbart']:
-            args.batch_size = 48
-    elif args.task == 'clone':
-        args.adam_epsilon = 1e-8
-        args.beam_size = 10
-        args.gradient_accumulation_steps = 1
-        args.lr = 5e-5
-        args.max_source_length = 256
-        args.max_target_length = 256
-        args.num_train_epochs = 5
-        args.patience = 2
-        args.weight_decay = 0.0
-        args.warmup_steps = 1000
-
-        if args.model_name in ['roberta', 'codebert', 'graphcodebert','unixcoder']:
-            args.batch_size = 32
-        elif args.model_name in ['t5', 'codet5']:
-            args.batch_size = 32
-        elif args.model_name in ['bart', 'plbart']:
-            args.batch_size = 32
+            args.batch_size = 1 if args.few_shot == -1 else 4
     elif args.task == 'complete':
         args.adam_epsilon = 1e-8
         args.beam_size = 10
@@ -230,14 +196,47 @@ def set_hyperparas(args):
         args.lr = 8e-5
         args.max_source_length = 256
         args.max_target_length = 256
-        args.num_train_epochs = 10
-        args.patience = 2
+        args.num_train_epochs = 1 if args.few_shot == -1 else 1
+        args.patience = 2 if args.few_shot == -1 else 0
         args.weight_decay = 0.0
-        args.warmup_steps = 1000
 
         if args.model_name in ['roberta', 'codebert', 'graphcodebert','unixcoder']:
-            args.batch_size = 32
+            args.batch_size = 1 if args.few_shot == -1 else 4
         elif args.model_name in ['t5', 'codet5']:
-            args.batch_size = 32
+            args.batch_size = 1 if args.few_shot == -1 else 4
         elif args.model_name in ['bart', 'plbart']:
-            args.batch_size = 32
+            args.batch_size = 1 if args.few_shot == -1 else 4
+    elif args.task == 'defect':
+        args.adam_epsilon = 1e-8
+        args.beam_size = 10
+        args.gradient_accumulation_steps = 1
+        args.lr = 2e-5
+        args.max_source_length = 512
+        args.max_target_length = 3  # as do not need to add lang ids
+        args.num_train_epochs = 1 if args.few_shot == -1 else 1
+        args.patience = 2 if args.few_shot == -1 else 0
+        args.weight_decay = 0.0
+
+        if args.model_name in ['roberta', 'codebert', 'graphcodebert','unixcoder']:
+            args.batch_size = 1 if args.few_shot == -1 else 4
+        elif args.model_name in ['t5', 'codet5']:
+            args.batch_size = 1 if args.few_shot == -1 else 4
+        elif args.model_name in ['bart', 'plbart']:
+            args.batch_size = 1 if args.few_shot == -1 else 4
+    elif args.task == 'clone':
+        args.adam_epsilon = 1e-8
+        args.beam_size = 10
+        args.gradient_accumulation_steps = 1
+        args.lr = 5e-5
+        args.max_source_length = 512#400
+        args.max_target_length = 512#400
+        args.num_train_epochs = 1 if args.few_shot == -1 else 1
+        args.patience = 2 if args.few_shot == -1 else 0
+        args.weight_decay = 0.0
+
+        if args.model_name in ['roberta', 'codebert', 'graphcodebert','unixcoder']:
+            args.batch_size = 1 if args.few_shot == -1 else 4
+        elif args.model_name in ['t5', 'codet5']:
+            args.batch_size = 1 if args.few_shot == -1 else 4
+        elif args.model_name in ['bart', 'plbart']:
+            args.batch_size = 1 if args.few_shot == -1 else 4
