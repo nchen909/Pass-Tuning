@@ -115,7 +115,7 @@ def set_seed(args):
 
 def set_hyperparas(args):
     # args.warmup_steps = 1000
-    args.few_shot = 200
+    args.few_shot = 500
     if args.task == 'summarize':
         args.adam_epsilon = 1e-8
         args.beam_size = 10

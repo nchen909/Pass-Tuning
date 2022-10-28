@@ -32,7 +32,7 @@ mkdir -p ${RES_DIR}
 
 RUN_FN=${WORKDIR}/main.py
 
-few_shot_lst=(20 100 500 1000 2000 4000 10000)
+few_shot_lst=(16 32 64 128 256 512 1024)
 # wait to add: for different seeds
 
 if [[ ${SUB_TASK} == none ]]; then

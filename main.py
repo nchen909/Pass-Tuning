@@ -267,8 +267,12 @@ def main():
     set_hyperparas(args)
 
     logger.info(args)
+    logger.info("************* args: *************")
+    logger.info("args.model_name:"+str(args.model_name))
     logger.info("args.few_shot:"+str(args.few_shot))
-
+    logger.info("args.task:"+str(args.task))
+    logger.info("args.sub_task:"+str(args.sub_task))
+    logger.info("*********************************")
     
     if args.task in ['summarize', 'translate', 'refine', 'generate','complete']:
         config, model, tokenizer = bulid_or_load_gen_model(args)

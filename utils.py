@@ -17,6 +17,9 @@ from functools import partial
 from torch.utils.data import DataLoader, Dataset, SequentialSampler, RandomSampler,TensorDataset
 logger = logging.getLogger(__name__)
 
+def get_fewshot_setting(args):
+    shot=args.fewshot
+    
 def get_lang_by_task(task, sub_task):
     if task in ['summarize','complete']:
         return sub_task
