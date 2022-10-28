@@ -117,6 +117,7 @@ def set_hyperparas(args):
     # args.warmup_steps = 1000
     args.few_shot = 500
     if args.task == 'summarize':
+        args.data_num = args.few_shot if args.few_shot > 0 else -1
         args.adam_epsilon = 1e-8
         args.beam_size = 10
         args.gradient_accumulation_steps = 1
@@ -135,6 +136,7 @@ def set_hyperparas(args):
         elif args.model_name in ['bart', 'plbart']:
             args.batch_size = 1 if args.few_shot == -1 else 4
     elif args.task == 'translate':
+        args.data_num = args.few_shot if args.few_shot > 0 else -1
         args.adam_epsilon = 1e-8
         args.beam_size = 5
         args.gradient_accumulation_steps = 1
@@ -152,6 +154,7 @@ def set_hyperparas(args):
         elif args.model_name in ['bart', 'plbart']:
             args.batch_size = 1 if args.few_shot == -1 else 4
     elif args.task == 'refine':
+        args.data_num = args.few_shot if args.few_shot > 0 else -1
         args.adam_epsilon = 1e-8
         args.beam_size = 5
         args.gradient_accumulation_steps = 1
@@ -173,6 +176,7 @@ def set_hyperparas(args):
         elif args.model_name in ['bart', 'plbart']:
             args.batch_size = 1 if args.few_shot == -1 else 4
     elif args.task == 'generate':
+        args.data_num = args.few_shot if args.few_shot > 0 else -1
         args.adam_epsilon = 1e-8
         args.beam_size = 10
         args.gradient_accumulation_steps = 1
@@ -190,6 +194,7 @@ def set_hyperparas(args):
         elif args.model_name in ['bart', 'plbart']:
             args.batch_size = 1 if args.few_shot == -1 else 4
     elif args.task == 'complete':
+        args.data_num = args.few_shot if args.few_shot > 0 else -1
         args.adam_epsilon = 1e-8
         args.beam_size = 10
         args.gradient_accumulation_steps = 1
@@ -207,6 +212,7 @@ def set_hyperparas(args):
         elif args.model_name in ['bart', 'plbart']:
             args.batch_size = 1 if args.few_shot == -1 else 4
     elif args.task == 'defect':
+        args.data_num = args.few_shot*2 if args.few_shot > 0 else -1
         args.adam_epsilon = 1e-8
         args.beam_size = 10
         args.gradient_accumulation_steps = 1
@@ -224,6 +230,7 @@ def set_hyperparas(args):
         elif args.model_name in ['bart', 'plbart']:
             args.batch_size = 1 if args.few_shot == -1 else 4
     elif args.task == 'clone':
+        args.data_num = args.few_shot*2 if args.few_shot > 0 else -1
         args.adam_epsilon = 1e-8
         args.beam_size = 10
         args.gradient_accumulation_steps = 1

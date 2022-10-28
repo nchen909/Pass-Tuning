@@ -17,9 +17,6 @@ from functools import partial
 from torch.utils.data import DataLoader, Dataset, SequentialSampler, RandomSampler,TensorDataset
 logger = logging.getLogger(__name__)
 
-def get_fewshot_setting(args):
-    shot=args.fewshot
-    
 def get_lang_by_task(task, sub_task):
     if task in ['summarize','complete']:
         return sub_task
@@ -403,7 +400,7 @@ def load_and_cache_gen_data(args, filename, pool, tokenizer, split_tag, only_src
     cache_fn = '{}/{}.pt'.format(args.cache_path,
                                  split_tag + ('_src' if only_src else '') + data_tag)
 
-    examples = read_examples(filename, args.data_num, args.task)
+    examples = read_examples(filename, -1, args.task)
     args.warmup_steps = len(examples) / 100
     if is_sample and is_attention:
         examples = random.sample(examples, min(3000, len(examples)) if args.few_shot == -1 else args.few_shot)
@@ -606,9 +603,16 @@ def load_and_cache_clone_data(args, filename, pool, tokenizer, split_tag, is_sam
 
     cache_fn = '{}/{}.pt'.format(args.cache_path, split_tag +
                                 '_all' if args.data_num == -1 else '_%d' % args.data_num)
-    examples = read_examples(filename, args.data_num, args.task)
+    examples = read_examples(filename, -1, args.task)
     if is_sample or args.few_shot != -1:
-        examples = random.sample(examples, int(len(examples) * 0.1) if args.few_shot == -1 else args.few_shot)
+        if args.few_shot == -1:
+            examples = random.sample(examples, int(len(examples) * 0.1))
+        else:
+            examples_True = [e for e in examples if e.label == 1]
+            examples_False = [e for e in examples if e.label == 0]
+            examples_True = random.sample(examples_True,args.few_shot)
+            examples_False = random.sample(examples_False,args.few_shot)
+            examples = examples_True + examples_False
 
     calc_stats(examples, tokenizer, is_tokenize=True)
     if os.path.exists(cache_fn) and args.few_shot == -1:
@@ -645,9 +649,15 @@ def load_and_cache_clone_data(args, filename, pool, tokenizer, split_tag, is_sam
 
 def load_and_cache_defect_data(args, filename, pool, tokenizer, split_tag, is_sample=False):
     cache_fn = os.path.join(args.cache_path, split_tag)
-    examples = read_examples(filename, args.data_num, args.task)
-    if is_sample or args.few_shot != -1:
-        examples = random.sample(examples, int(len(examples) * 0.1)  if args.few_shot == -1 else args.few_shot)
+    examples = read_examples(filename, -1, args.task)
+    if args.few_shot == -1:
+        examples = random.sample(examples, int(len(examples) * 0.1))
+    else:
+        examples_True = [e for e in examples if e.target == 1]
+        examples_False = [e for e in examples if e.target == 0]
+        examples_True = random.sample(examples_True,args.few_shot)
+        examples_False = random.sample(examples_False,args.few_shot)
+        examples = examples_True + examples_False
     calc_stats(examples, tokenizer, is_tokenize=True)
     if os.path.exists(cache_fn) and args.few_shot == -1:
         logger.info("Load cache data from %s", cache_fn)

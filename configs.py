@@ -114,21 +114,24 @@ def set_seed(args):
 
 
 def set_hyperparas(args):
-    # args.few_shot = 128
+    # args.few_shot = 32
 
     args.adam_epsilon = 1e-8
     args.beam_size = 10
     args.gradient_accumulation_steps = 1
     args.weight_decay = 0.0
     if args.task == 'summarize':
+        args.data_num = args.few_shot if args.few_shot > 0 else -1
         args.lr = 5e-5
         args.max_source_length = 256
         args.max_target_length = 128
     elif args.task == 'translate':
+        args.data_num = args.few_shot if args.few_shot > 0 else -1
         args.lr = 5e-5
         args.max_source_length = 320
         args.max_target_length = 256
     elif args.task == 'refine':
+        args.data_num = args.few_shot if args.few_shot > 0 else -1
         args.lr = 5e-5
         if args.sub_task == 'small':
             args.max_source_length = 130
@@ -137,25 +140,29 @@ def set_hyperparas(args):
             args.max_source_length = 240
             args.max_target_length = 240
     elif args.task == 'generate':
+        args.data_num = args.few_shot if args.few_shot > 0 else -1
         args.lr = 5e-5
         args.max_source_length = 320
         args.max_target_length = 150
     elif args.task == 'complete':
+        args.data_num = args.few_shot if args.few_shot > 0 else -1
         args.lr = 8e-5
         args.max_source_length = 256
         args.max_target_length = 256
     elif args.task == 'defect':
+        args.data_num = args.few_shot * 2 if args.few_shot > 0 else -1
         args.lr = 2e-5
         args.max_source_length = 512
         args.max_target_length = 3  # as do not need to add lang ids
     elif args.task == 'clone':
+        args.data_num = args.few_shot * 2 if args.few_shot > 0 else -1 
         args.lr = 5e-5
         args.max_source_length = 512#400
         args.max_target_length = 512#400
 
     if args.few_shot == -1:
         args.num_train_epochs = 5
-        args.batch_size = 128
+        args.batch_size = 128 if args.model_name not in ['t5', 'codet5'] else 64
         args.warmup_steps = 1000
     elif args.few_shot < 128: #16,32,64
         args.num_train_epochs = 64
