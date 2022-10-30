@@ -79,8 +79,6 @@ def add_args(parser):
     #                 help="whether to use upgraded ast")
     parser.add_argument('--few_shot',  default=-1, type=int,
                     help="use k shot, -1 for full data")
-    parser.add_argument('--prompt',  default=0, type=int, choices=[0,1],
-                help="whether to use upgraded ast")
     args = parser.parse_args()
     return args
 

@@ -173,7 +173,7 @@ def eval_bleu_epoch(args, eval_data, eval_examples, model, tokenizer, split_tag,
     pred_ids = []
     bleu, codebleu = 0.0, 0.0
     for batch in tqdm(eval_dataloader, total=len(eval_dataloader), desc="Eval bleu for {} set".format(split_tag)):
-        source_ids = batch[0].to(args.device)
+        source_ids = batch[0].to(args.device) #shape: (batch_size, max_source_len)
         source_mask = source_ids.ne(tokenizer.pad_token_id)
         with torch.no_grad():
             if args.model_name in ['roberta', 'codebert', 'graphcodebert']:
@@ -181,8 +181,8 @@ def eval_bleu_epoch(args, eval_data, eval_examples, model, tokenizer, split_tag,
                                  source_mask=source_mask)
                 top_preds = [pred[0].cpu().numpy() for pred in preds]
             elif args.model_name in ['unixcoder']:
-                preds = model(source_ids=source_ids)  
-                top_preds = [pred[0].cpu().numpy() for pred in preds]
+                preds = model(source_ids=source_ids)  # preds shape: [batch_size, self.beam_size, max_target_len]
+                top_preds = [pred[0].cpu().numpy() for pred in preds]# top_preds shape: batch_size * [max_target_len]
             else:
                 preds = model.generate(source_ids,
                                        attention_mask=source_mask,
@@ -195,7 +195,9 @@ def eval_bleu_epoch(args, eval_data, eval_examples, model, tokenizer, split_tag,
     # pdb.set_trace()
     pred_nls = [tokenizer.decode(
         id, skip_special_tokens=True, clean_up_tokenization_spaces=False) for id in pred_ids]
-
+    # unixcoder in fewshot will generate '\n' in small batch, and gradually disappear
+    if args.model_name in ['unixcoder']:
+        pred_nls = [id.replace('\n','').replace("        "," ").replace("    "," ").replace("\t"," ") for id in pred_nls]
     output_fn = os.path.join(args.res_dir, "test_{}.output".format(criteria))
     gold_fn = os.path.join(args.res_dir, "test_{}.gold".format(criteria))
     src_fn = os.path.join(args.res_dir, "test_{}.src".format(criteria))
@@ -726,7 +728,9 @@ def main():
                 test_codebleu = result['codebleu'] if 'codebleu' in result else 0
                 result_str = "[%s] bleu-4: %.2f, em: %.4f, codebleu: %.4f\n" % (
                     criteria, test_bleu, test_em, test_codebleu)
+                logger.info("*********************************")
                 logger.info(result_str)
+                logger.info("*********************************")
                 fa.write(result_str)
                 if args.res_fn:
                     with open(args.res_fn, 'a+',encoding='utf-8') as f:
@@ -745,8 +749,10 @@ def main():
                 eval_examples, eval_data = load_and_cache_defect_data(args, args.test_filename, pool, tokenizer, 'test',
                                                                     False)
                 result = evaluate_cls(args, model, eval_examples, eval_data, write_to_pred=True)
-                logger.info("  test_acc = %.4f", result['eval_acc'])
-                logger.info("  " + "*" * 20)
+                logger.info(" test_acc = %.4f" % ( result['eval_acc']))
+                logger.info("*********************************")
+                logger.info("[%s]  test_acc = %.4f" % (criteria, result['eval_acc']))
+                logger.info("*********************************")
 
                 fa.write("[%s] test-acc: %.4f\n" % (criteria, result['eval_acc']))
                 if args.res_fn:
@@ -768,10 +774,14 @@ def main():
                                                                     False)
 
                 result = evaluate_cls(args, model, eval_examples, eval_data, write_to_pred=True)
+                
                 logger.info("  test_f1 = %.4f", result['eval_f1'])
                 logger.info("  test_prec = %.4f", result['eval_precision'])
                 logger.info("  test_rec = %.4f", result['eval_recall'])
-                logger.info("  " + "*" * 20)
+                logger.info("*********************************")
+                logger.info("[%s] test-f1: %.4f, precision: %.4f, recall: %.4f\n" % (
+                    criteria, result['eval_f1'], result['eval_precision'], result['eval_recall']))
+                logger.info("*********************************")
 
                 fa.write("[%s] test-f1: %.4f, precision: %.4f, recall: %.4f\n" % (
                     criteria, result['eval_f1'], result['eval_precision'], result['eval_recall']))

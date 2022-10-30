@@ -79,8 +79,6 @@ def add_args(parser):
     #                 help="whether to use upgraded ast")
     parser.add_argument('--few_shot',  default=-1, type=int,
                     help="use k shot, -1 for full data")
-    parser.add_argument('--prompt',  default=0, type=int, choices=[0,1],
-                help="whether to use upgraded ast")
     args = parser.parse_args()
     return args
 
@@ -114,7 +112,7 @@ def set_seed(args):
 
 
 def set_hyperparas(args):
-    # args.few_shot = 32
+    args.few_shot = 64
 
     args.adam_epsilon = 1e-8
     args.beam_size = 10
@@ -162,7 +160,7 @@ def set_hyperparas(args):
 
     if args.few_shot == -1:
         args.num_train_epochs = 5
-        args.batch_size = 128 if args.model_name not in ['t5', 'codet5'] else 64
+        args.batch_size = 128 if args.model_name not in ['t5', 'codet5'] else 16
         args.warmup_steps = 1000
     elif args.few_shot < 128: #16,32,64
         args.num_train_epochs = 64

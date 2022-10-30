@@ -303,7 +303,7 @@ class DefectModel(nn.Module):
             vec = self.get_bart_vec(source_ids)
             logits = self.classifier(vec)
             prob = nn.functional.softmax(logits)
-        elif self.args.model_name in ['roberta', 'codebert', 'graphcodebert','unixcoder']:
+        elif self.args.model_name in ['roberta', 'codebert', 'graphcodebert']:
             vec = self.get_roberta_vec(source_ids)
             logits = self.classifier(vec)
             prob = nn.functional.softmax(logits)
@@ -710,7 +710,7 @@ class Seq2Seq4UniXcoder_generation(nn.Module):
                 input_ids.data.copy_(input_ids.data.index_select(0, beam.getCurrentOrigin()))
                 input_ids = torch.cat((input_ids,beam.getCurrentState()),-1)
             hyp = beam.getHyp(beam.getFinal())
-            pred = beam.buildTargetTokens(hyp)[:self.beam_size]
+            pred = beam.buildTargetTokens(hyp)[:self.beam_size] #len:10
             pred = [torch.cat([x.view(-1) for x in p]+[zero]*(self.max_length-len(p))).view(1,-1) for p in pred]
             preds.append(torch.cat(pred,0).unsqueeze(0))
 

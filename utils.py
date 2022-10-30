@@ -401,13 +401,13 @@ def load_and_cache_gen_data(args, filename, pool, tokenizer, split_tag, only_src
                                  split_tag + ('_src' if only_src else '') + data_tag)
 
     examples = read_examples(filename, -1, args.task)
-    args.warmup_steps = len(examples) / 100
+    
     if is_sample and is_attention:
         examples = random.sample(examples, min(3000, len(examples)) if args.few_shot == -1 else args.few_shot)
-
+        args.warmup_steps = len(examples) / 100
     if is_sample or args.few_shot != -1:
         examples = random.sample(examples, min(5000, len(examples)) if args.few_shot == -1 else args.few_shot)
-    
+        args.warmup_steps = len(examples) / 100
     if split_tag == 'train':
         calc_stats(examples, tokenizer, is_tokenize=True)
     else:
@@ -418,8 +418,8 @@ def load_and_cache_gen_data(args, filename, pool, tokenizer, split_tag, only_src
     else:
         if is_sample:
             logger.info(
-                "Sample 5k data for computing bleu/attention from %s", filename)
-        else:
+                "Sample %d data for computing bleu/attention from %s", len(examples),filename)
+        elif args.data_num == -1:
             logger.info("Create cache data into %s", cache_fn)
         tuple_examples = [(example, idx, tokenizer, args, split_tag)
                           for idx, example in enumerate(examples)]
