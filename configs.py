@@ -112,7 +112,7 @@ def set_seed(args):
 
 
 def set_hyperparas(args):
-    args.few_shot = 64
+    # args.few_shot = 64
 
     args.adam_epsilon = 1e-8
     args.beam_size = 10
