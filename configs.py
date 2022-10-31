@@ -112,7 +112,7 @@ def set_seed(args):
 
 
 def set_hyperparas(args):
-    # args.few_shot = 64
+    # args.few_shot = 512
 
     args.adam_epsilon = 1e-8
     args.beam_size = 10
@@ -160,15 +160,17 @@ def set_hyperparas(args):
 
     if args.few_shot == -1:
         args.num_train_epochs = 5
-        args.batch_size = 128 if args.model_name not in ['t5', 'codet5'] else 16
+        args.batch_size = 64 if args.model_name not in ['t5', 'codet5'] else 8
+        # args.batch_size = 128 if args.model_name not in ['t5', 'codet5'] else 16
         args.warmup_steps = 1000
     elif args.few_shot < 128: #16,32,64
         args.num_train_epochs = 64
-        args.batch_size = 4
+        # args.lr =5e-8
+        args.batch_size = 2
     elif args.few_shot < 512: #128,256
         args.num_train_epochs = 48
-        args.batch_size = 8
+        args.batch_size = 4 if args.model_name not in ['t5', 'codet5'] else 4
     elif args.few_shot < 2048: #512,1024
         args.num_train_epochs = 32
-        args.batch_size = 16
-    args.patience = args.num_train_epochs//5
+        args.batch_size = 8 if args.model_name not in ['t5', 'codet5'] else 4
+    args.patience = min( 10, args.num_train_epochs//5)

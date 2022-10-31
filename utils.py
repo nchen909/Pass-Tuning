@@ -402,11 +402,26 @@ def load_and_cache_gen_data(args, filename, pool, tokenizer, split_tag, only_src
 
     examples = read_examples(filename, -1, args.task)
     
-    if is_sample and is_attention:
-        examples = random.sample(examples, min(3000, len(examples)) if args.few_shot == -1 else args.few_shot)
-        args.warmup_steps = len(examples) / 100
+    # if is_sample and is_attention:
+    #     if args.few_shot <= len(examples):
+    #         examples = random.sample(examples, min(3000, len(examples)) if args.few_shot == -1 else args.few_shot)
+    #     else:
+    #         # for CodeTrans dataset, dev&test example len = 500, may smaller than few-shot case
+    #         # we compensate some examples from train set to fill examples to args.few_shot
+    #         examples_train = read_examples(args.train_filename, -1, args.task)
+    #         examples += random.sample(examples_train, args.few_shot - len(examples))
+    #         assert len(examples) == args.few_shot
+        
+    #     args.warmup_steps = len(examples) / 100
     if is_sample or args.few_shot != -1:
-        examples = random.sample(examples, min(5000, len(examples)) if args.few_shot == -1 else args.few_shot)
+        if args.few_shot <= len(examples):
+            examples = random.sample(examples, min(5000, len(examples)) if args.few_shot == -1 else args.few_shot)
+        else:
+            # for CodeTrans dataset, dev&test example len = 500, may smaller than few-shot case
+            # we compensate some examples from train set to fill examples to args.few_shot
+            examples_train = read_examples(args.train_filename, -1, args.task)
+            examples += random.sample(examples_train, args.few_shot - len(examples))
+            assert len(examples) == args.few_shot
         args.warmup_steps = len(examples) / 100
     if split_tag == 'train':
         calc_stats(examples, tokenizer, is_tokenize=True)

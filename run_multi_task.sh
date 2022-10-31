@@ -1,7 +1,7 @@
 #!/bin/bash
 
 model_lst=(roberta codebert graphcodebert codet5 plbart unixcoder)
-
+#(roberta codebert graphcodebert codet5 plbart unixcoder)
 cuda=0
 
 for model in "${model_lst[@]}"; do
@@ -9,23 +9,24 @@ for model in "${model_lst[@]}"; do
     bash run.sh $model clone
 
     bash run.sh $model defect
-    #you can indeed run defect in main.py(run_gen.py),
-    # in which 'em' refers to eval_acc * 100, and bleu=codebleu=0
+    # #you can indeed run defect in main.py(run_gen.py),
+    # # in which 'em' refers to eval_acc * 100, and bleu=codebleu=0
 
-    #NLG
+    # #NLG
+    bash run.sh $model translate java-cs
+    bash run.sh $model translate cs-java
+    bash run.sh $model refine small
+    bash run.sh $model refine medium
+    bash run.sh $model generate
+
+    
+    
     bash run.sh $model summarize ruby
     bash run.sh $model summarize javascript
     bash run.sh $model summarize go
     bash run.sh $model summarize python
     bash run.sh $model summarize java
     bash run.sh $model summarize php
-
-    
-    bash run.sh $model translate java-cs
-    bash run.sh $model translate cs-java
-    bash run.sh $model refine small
-    bash run.sh $model refine medium
-    bash run.sh $model generate
 
 done
 
