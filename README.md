@@ -20,6 +20,7 @@ bash get_models.sh
 The dataset comes from [CodeXGLUE](https://github.com/microsoft/CodeXGLUE).
 
 ```shell
+mkdir data
 cd data
 pip install gdown
 gdown https://drive.google.com/uc?export=download&id=1BBeHFlKoyanbxaqFJ6RRWlqpiokhDhY7
