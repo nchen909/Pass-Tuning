@@ -148,6 +148,8 @@ def eval_ppl_epoch(args, eval_data, eval_examples, model, tokenizer):
                 outputs = model(input_ids=source_ids, attention_mask=source_mask,
                                 labels=target_ids, decoder_attention_mask=target_mask)
                 loss = outputs.loss
+                if args.n_gpu > 1:
+                    loss = loss.mean()
                 eval_loss += loss.item()
                 batch_num += 1
     
@@ -175,6 +177,8 @@ def eval_bleu_epoch(args, eval_data, eval_examples, model, tokenizer, split_tag,
     for batch in tqdm(eval_dataloader, total=len(eval_dataloader), desc="Eval bleu for {} set".format(split_tag)):
         source_ids = batch[0].to(args.device) #shape: (batch_size, max_source_len)
         source_mask = source_ids.ne(tokenizer.pad_token_id)
+        if hasattr(model, 'module'):
+            model = model.module # extract the model from the DataParallel wrapper
         with torch.no_grad():
             if args.model_name in ['roberta', 'codebert', 'graphcodebert']:
                 preds, _ = model(source_ids=source_ids,
