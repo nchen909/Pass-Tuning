@@ -14,19 +14,19 @@ for model in "${model_lst[@]}"; do
 
     # #NLG
     bash run.sh $model translate java-cs
-    bash run.sh $model translate cs-java
+    # bash run.sh $model translate cs-java
     bash run.sh $model refine small
-    bash run.sh $model refine medium
+    # bash run.sh $model refine medium
     bash run.sh $model generate
 
     
     
     bash run.sh $model summarize ruby
-    bash run.sh $model summarize javascript
-    bash run.sh $model summarize go
-    bash run.sh $model summarize python
-    bash run.sh $model summarize java
-    bash run.sh $model summarize php
+    # bash run.sh $model summarize javascript
+    # bash run.sh $model summarize go
+    # bash run.sh $model summarize python
+    # bash run.sh $model summarize java
+    # bash run.sh $model summarize php
 
 done
 
