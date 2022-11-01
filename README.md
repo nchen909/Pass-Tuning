@@ -17,7 +17,7 @@ bash get_models.sh
 
 ## Preparing data
 
-The dataset comes from [CodeSearchNet](https://github.com/microsoft/CodeXGLUE/tree/main/Code-Text/code-to-text).
+The dataset comes from [CodeXGLUE](https://github.com/microsoft/CodeXGLUE).
 
 ```shell
 cd data
