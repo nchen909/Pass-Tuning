@@ -138,10 +138,14 @@ def eval_ppl_epoch(args, eval_data, eval_examples, model, tokenizer):
 #                                           target_ids=target_ids, target_mask=target_mask)
                 loss, _, _, _ = model(source_ids=source_ids, source_mask=source_mask,
                                     target_ids=target_ids, target_mask=target_mask)
+                if args.n_gpu > 1:
+                    loss = loss.mean()
                 eval_loss += loss.item()
                 batch_num += 1
             elif args.model_name in ['unixcoder']:
                 _,loss,num = model(source_ids=source_ids,target_ids=target_ids)
+                if args.n_gpu > 1:
+                    loss = loss.mean()
                 eval_loss += loss.sum().item()
                 batch_num += num.sum().item()
             else:
@@ -723,6 +727,7 @@ def main():
                 file = os.path.join(
                     args.output_dir, 'checkpoint-{}/pytorch_model.bin'.format(criteria))
                 logger.info("Reload model from {}".format(file))
+                # model = model.module if hasattr(model, 'module') else model
                 model.load_state_dict(torch.load(file))
                 eval_examples, eval_data = load_and_cache_gen_data(args, args.test_filename, pool, tokenizer, 'test',
                                                                 only_src=True, is_sample=False)
@@ -750,6 +755,7 @@ def main():
                 if args.n_gpu > 1:
                     # multi-gpu training
                     model = torch.nn.DataParallel(model)
+                    
                 eval_examples, eval_data = load_and_cache_defect_data(args, args.test_filename, pool, tokenizer, 'test',
                                                                     False)
                 result = evaluate_cls(args, model, eval_examples, eval_data, write_to_pred=True)

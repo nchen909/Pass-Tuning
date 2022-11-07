@@ -160,7 +160,7 @@ def set_hyperparas(args):
 
     if args.few_shot == -1:
         args.num_train_epochs = 5
-        args.batch_size = 128 if args.model_name not in ['t5', 'codet5'] else 64
+        args.batch_size = 128 if args.model_name not in ['t5', 'codet5'] and args.sub_task not in ['clone'] else 64
         # args.batch_size = 128 if args.model_name not in ['t5', 'codet5'] else 16
         args.warmup_steps = 1000
     elif args.few_shot < 128: #16,32,64

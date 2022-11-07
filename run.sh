@@ -33,7 +33,7 @@ mkdir -p ${RES_DIR}
 RUN_FN=${WORKDIR}/main.py
 
 if [[ ${SUB_TASK} == none ]]; then
-  CUDA_VISIBLE_DEVICES=0 \
+  # CUDA_VISIBLE_DEVICES=0 \
   TOKENIZERS_PARALLELISM=false \
     python ${RUN_FN} ${MULTI_TASK_AUG} \
     --do_test --do_train --do_eval --do_eval_bleu --save_last_checkpoints --always_save_model \
@@ -42,7 +42,7 @@ if [[ ${SUB_TASK} == none ]]; then
     --data_dir ${WORKDIR}/data  --cache_path ${CACHE_DIR} --res_dir ${RES_DIR} --res_fn ${RES_FN} \
     2>&1 | tee ${LOG}
 else
-  CUDA_VISIBLE_DEVICES=0 \
+  # CUDA_VISIBLE_DEVICES=0 \
   TOKENIZERS_PARALLELISM=false \
     python ${RUN_FN} ${MULTI_TASK_AUG} \
     --do_test --do_train --do_eval --do_eval_bleu --save_last_checkpoints --always_save_model \

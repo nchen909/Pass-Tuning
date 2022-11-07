@@ -252,7 +252,7 @@ def read_translate_examples(filename, data_num):
     trg_filename = filename.split(',')[1]
     idx = 0
     with open(src_filename, encoding="utf-8") as f1, open(trg_filename, encoding="utf-8") as f2:
-        for line1, line2 in zip(f1, f2):
+        for line1, line2 in tqdm(zip(f1, f2)):
             src = line1.strip()
             trg = line2.strip()
             examples.append(
@@ -277,7 +277,7 @@ def read_refine_examples(filename, data_num):
     idx = 0
 
     with open(src_filename, encoding="utf-8") as f1, open(trg_filename, encoding="utf-8") as f2:
-        for line1, line2 in zip(f1, f2):
+        for line1, line2 in tqdm(zip(f1, f2)):
             examples.append(
                 Example(
                     idx=idx,
@@ -296,7 +296,7 @@ def read_generate_examples(filename, data_num):
     examples = []
 
     with open(filename, encoding="utf-8") as f:
-        for idx, line in enumerate(f):
+        for idx, line in tqdm(enumerate(f)):
             x = json.loads(line)
             examples.append(
                 Example(
@@ -315,7 +315,7 @@ def read_summarize_examples(filename, data_num):
     """Read examples from filename."""
     examples = []
     with open(filename, encoding="utf-8") as f:
-        for idx, line in enumerate(f):
+        for idx, line in tqdm(enumerate(f)):
             line = line.strip()
             js = json.loads(line)
             if 'idx' not in js:
@@ -341,7 +341,7 @@ def read_defect_examples(filename, data_num):
     """Read examples from filename."""
     examples = []
     with open(filename, encoding="utf-8") as f:
-        for idx, line in enumerate(f):
+        for idx, line in tqdm(enumerate(f)):
             line = line.strip()
             js = json.loads(line)
 
@@ -363,7 +363,7 @@ def read_clone_examples(filename, data_num):
     index_filename = filename
     url_to_code = {}
     with open('/'.join(index_filename.split('/')[:-1]) + '/data.jsonl', encoding="utf-8") as f:
-        for line in f:
+        for line in tqdm(f):
             line = line.strip()
             js = json.loads(line)
             code = ' '.join(js['func'].split())
@@ -375,7 +375,7 @@ def read_clone_examples(filename, data_num):
     data = []
     with open(index_filename, encoding="utf-8") as f:
         idx = 0
-        for line in f:
+        for line in tqdm(f):
             line = line.strip()
             url1, url2, label = line.split('\t')
             if url1 not in url_to_code or url2 not in url_to_code:
