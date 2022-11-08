@@ -204,20 +204,20 @@ class CloneModel(nn.Module):
         return vec
 
     def get_unixcoder_vec(self, source_ids):
-        outputs = self.encoder(source_ids,attention_mask=source_ids.ne(1))[0]
-        outputs = (outputs * source_ids.ne(1)[:,:,None]).sum(1)/source_ids.ne(1).sum(1)[:,None]
-        outputs = outputs.reshape(-1,2,outputs.size(-1))
+        outputs = self.encoder(source_ids,attention_mask=source_ids.ne(1))[0]#shape:batch_size*max_len512*hidden_size768
+        outputs = (outputs * source_ids.ne(1)[:,:,None]).sum(1)/source_ids.ne(1).sum(1)[:,None]#shape:batch_size*hidden_size
+        outputs = outputs.reshape(-1,2,outputs.size(-1))#shape:batch_size/2 *2*hidden_size
         outputs = torch.nn.functional.normalize(outputs, p=2, dim=-1)
         cos_sim = (outputs[:,0]*outputs[:,1]).sum(-1)
 
         return cos_sim #cos_sim, labels
         
     def forward(self, source_ids=None, labels=None):
-        source_ids = source_ids.view(-1, self.args.max_source_length)
+        source_ids = source_ids.view(-1, self.args.max_source_length)#[batch*2,512]
 
         if self.args.model_name in ['t5','codet5']:
-            vec = self.get_t5_vec(source_ids)
-            logits = self.classifier(vec)
+            vec = self.get_t5_vec(source_ids)#[batch*2,768]
+            logits = self.classifier(vec)#[batch,2]
             prob = nn.functional.softmax(logits)
         elif self.args.model_name in ['bart','plbart']:
             vec = self.get_bart_vec(source_ids)
@@ -284,21 +284,23 @@ class DefectModel(nn.Module):
         return vec
 
     def get_unixcoder_vec(self, source_ids):
-        outputs = self.encoder(source_ids,attention_mask=source_ids.ne(1))[0]
-        outputs = (outputs * source_ids.ne(1)[:,:,None]).sum(1)/source_ids.ne(1).sum(1)[:,None]
-        outputs = outputs.reshape(-1,2,outputs.size(-1))
-        outputs = torch.nn.functional.normalize(outputs, p=2, dim=-1)
-        cos_sim = (outputs[:,0]*outputs[:,1]).sum(-1)
+        outputs = self.encoder(source_ids,attention_mask=source_ids.ne(1))[0]#shape:batch_size*max_len512*hidden_size768
+        outputs = (outputs * source_ids.ne(1)[:,:,None]).sum(1)/source_ids.ne(1).sum(1)[:,None]#shape:batch_size*hidden_size
+        # outputs = outputs.reshape(-1,2,outputs.size(-1))
+        # outputs = torch.nn.functional.normalize(outputs, p=2, dim=-1)
+        # cos_sim = (outputs[:,0]*outputs[:,1]).sum(-1)
 
-        return cos_sim #cos_sim, labels
+        # return cos_sim #cos_sim, labels
+        outputs = self.classifier(outputs)
+        return outputs
     
     def forward(self, source_ids=None, labels=None):
         source_ids = source_ids.view(-1, self.args.max_source_length)
 
         if self.args.model_name in ['t5','codet5']:
-            vec = self.get_t5_vec(source_ids)
-            logits = self.classifier(vec)
-            prob = nn.functional.softmax(logits)
+            vec = self.get_t5_vec(source_ids)#[batch_size,hidden_size]
+            logits = self.classifier(vec)#[batch_size,2]
+            prob = nn.functional.softmax(logits)#[batch_size,2]
         elif self.args.model_name in ['bart','plbart']:
             vec = self.get_bart_vec(source_ids)
             logits = self.classifier(vec)
@@ -313,13 +315,13 @@ class DefectModel(nn.Module):
 
 
         if labels is not None:
-            if self.args.model_name not in ['unixcoder']:
-                loss_fct = nn.CrossEntropyLoss()
-                loss = loss_fct(logits, labels)
-                return loss, prob
-            else:
-                loss = ((logits-labels.float())**2).mean()
-                return loss, prob
+            # if self.args.model_name not in ['unixcoder']:
+            loss_fct = nn.CrossEntropyLoss()
+            loss = loss_fct(logits, labels)#[batchsize,2] [batchsize]
+            return loss, prob
+            # else:
+            #     loss = ((logits-labels.float())**2).mean()
+            #     return loss, prob
         else:
             return prob
 

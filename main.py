@@ -728,6 +728,10 @@ def main():
                     args.output_dir, 'checkpoint-{}/pytorch_model.bin'.format(criteria))
                 logger.info("Reload model from {}".format(file))
                 # model = model.module if hasattr(model, 'module') else model
+
+                if args.n_gpu > 1:
+                    # multi-gpu training
+                    model = torch.nn.DataParallel(model)
                 model.load_state_dict(torch.load(file))
                 eval_examples, eval_data = load_and_cache_gen_data(args, args.test_filename, pool, tokenizer, 'test',
                                                                 only_src=True, is_sample=False)
@@ -750,12 +754,13 @@ def main():
             for criteria in ['best-acc']:
                 file = os.path.join(args.output_dir, 'checkpoint-{}/pytorch_model.bin'.format(criteria))
                 logger.info("Reload model from {}".format(file))
-                model.load_state_dict(torch.load(file))
 
-                if args.n_gpu > 1:
-                    # multi-gpu training
-                    model = torch.nn.DataParallel(model)
-                    
+                model = model.module if hasattr(model, 'module') else model
+                model.load_state_dict(torch.load(file))
+                # if args.n_gpu > 1:
+                #     # multi-gpu training
+                #     model = torch.nn.DataParallel(model)
+
                 eval_examples, eval_data = load_and_cache_defect_data(args, args.test_filename, pool, tokenizer, 'test',
                                                                     False)
                 result = evaluate_cls(args, model, eval_examples, eval_data, write_to_pred=True)
@@ -774,11 +779,12 @@ def main():
             for criteria in ['best-f1']:
                 file = os.path.join(args.output_dir, 'checkpoint-{}/pytorch_model.bin'.format(criteria))
                 logger.info("Reload model from {}".format(file))
-                model.load_state_dict(torch.load(file))
+                
 
                 if args.n_gpu > 1:
                     # multi-gpu training
                     model = torch.nn.DataParallel(model)
+                model.load_state_dict(torch.load(file))
 
                 eval_examples, eval_data = load_and_cache_clone_data(args, args.test_filename, pool, tokenizer, 'test',
                                                                     False)

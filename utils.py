@@ -252,7 +252,7 @@ def read_translate_examples(filename, data_num):
     trg_filename = filename.split(',')[1]
     idx = 0
     with open(src_filename, encoding="utf-8") as f1, open(trg_filename, encoding="utf-8") as f2:
-        for line1, line2 in tqdm(zip(f1, f2)):
+        for line1, line2 in tqdm(zip(f1, f2),desc="Read examples"):
             src = line1.strip()
             trg = line2.strip()
             examples.append(
@@ -277,7 +277,7 @@ def read_refine_examples(filename, data_num):
     idx = 0
 
     with open(src_filename, encoding="utf-8") as f1, open(trg_filename, encoding="utf-8") as f2:
-        for line1, line2 in tqdm(zip(f1, f2)):
+        for line1, line2 in tqdm(zip(f1, f2),desc="Read examples"):
             examples.append(
                 Example(
                     idx=idx,
@@ -296,7 +296,7 @@ def read_generate_examples(filename, data_num):
     examples = []
 
     with open(filename, encoding="utf-8") as f:
-        for idx, line in tqdm(enumerate(f)):
+        for idx, line in enumerate(tqdm(f,desc="Read examples")):
             x = json.loads(line)
             examples.append(
                 Example(
@@ -315,7 +315,7 @@ def read_summarize_examples(filename, data_num):
     """Read examples from filename."""
     examples = []
     with open(filename, encoding="utf-8") as f:
-        for idx, line in tqdm(enumerate(f)):
+        for idx, line in enumerate(tqdm(f,desc="Read examples")):
             line = line.strip()
             js = json.loads(line)
             if 'idx' not in js:
@@ -341,7 +341,7 @@ def read_defect_examples(filename, data_num):
     """Read examples from filename."""
     examples = []
     with open(filename, encoding="utf-8") as f:
-        for idx, line in tqdm(enumerate(f)):
+        for idx, line in enumerate(tqdm(f,desc="Read examples")):
             line = line.strip()
             js = json.loads(line)
 
@@ -363,7 +363,7 @@ def read_clone_examples(filename, data_num):
     index_filename = filename
     url_to_code = {}
     with open('/'.join(index_filename.split('/')[:-1]) + '/data.jsonl', encoding="utf-8") as f:
-        for line in tqdm(f):
+        for line in f:
             line = line.strip()
             js = json.loads(line)
             code = ' '.join(js['func'].split())
@@ -375,7 +375,7 @@ def read_clone_examples(filename, data_num):
     data = []
     with open(index_filename, encoding="utf-8") as f:
         idx = 0
-        for line in tqdm(f):
+        for line in tqdm(f,desc="Read examples"):
             line = line.strip()
             url1, url2, label = line.split('\t')
             if url1 not in url_to_code or url2 not in url_to_code:
@@ -619,22 +619,23 @@ def load_and_cache_clone_data(args, filename, pool, tokenizer, split_tag, is_sam
     cache_fn = '{}/{}.pt'.format(args.cache_path, split_tag +
                                 '_all' if args.data_num == -1 else '_%d' % args.data_num)
     examples = read_examples(filename, -1, args.task)
-    if is_sample or args.few_shot != -1:
-        if args.few_shot == -1:
-            examples = random.sample(examples, int(len(examples) * 0.1))
-        else:
-            examples_True = [e for e in examples if e.label == 1]
-            examples_False = [e for e in examples if e.label == 0]
-            examples_True = random.sample(examples_True,args.few_shot)
-            examples_False = random.sample(examples_False,args.few_shot)
-            examples = examples_True + examples_False
 
-    calc_stats(examples, tokenizer, is_tokenize=True)
+    examples = random.sample(examples, int(len(examples) * 0.1))
+    if args.few_shot!=-1:
+        examples_True = [e for e in examples if e.label == 1]
+        examples_False = [e for e in examples if e.label == 0]
+        examples_True = random.sample(examples_True,args.few_shot)
+        examples_False = random.sample(examples_False,args.few_shot)
+        examples = examples_True + examples_False
+
+    if args.few_shot != -1:
+        calc_stats(examples, tokenizer, is_tokenize=True)
+
     if os.path.exists(cache_fn) and args.few_shot == -1:
         logger.info("Load cache data from %s", cache_fn)
         data = torch.load(cache_fn)
     else:
-        if is_sample:
+        if args.few_shot == -1:
             logger.info("Sample 10 percent of data from %s", filename)
         elif args.data_num == -1:
             logger.info("Create cache data into %s", cache_fn)
@@ -665,9 +666,9 @@ def load_and_cache_clone_data(args, filename, pool, tokenizer, split_tag, is_sam
 def load_and_cache_defect_data(args, filename, pool, tokenizer, split_tag, is_sample=False):
     cache_fn = os.path.join(args.cache_path, split_tag)
     examples = read_examples(filename, -1, args.task)
-    if args.few_shot == -1:
+    if is_sample:
         examples = random.sample(examples, int(len(examples) * 0.1))
-    else:
+    elif args.few_shot != -1:
         examples_True = [e for e in examples if e.target == 1]
         examples_False = [e for e in examples if e.target == 0]
         examples_True = random.sample(examples_True,args.few_shot)

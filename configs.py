@@ -159,8 +159,18 @@ def set_hyperparas(args):
         args.max_target_length = 512#400
 
     if args.few_shot == -1:
-        args.num_train_epochs = 5
-        args.batch_size = 128 if args.model_name not in ['t5', 'codet5'] and args.sub_task not in ['clone'] else 64
+        if args.task in ['clone']:
+            args.num_train_epochs = 5 if torch.cuda.device_count()<=1 else 5*torch.cuda.device_count()//2
+        else:
+            args.num_train_epochs = 15 if torch.cuda.device_count()<=1 else 15*torch.cuda.device_count()//2
+        if args.model_name in ['t5', 'codet5']:
+            args.batch_size = 8  if torch.cuda.device_count() else 8 * torch.cuda.device_count()
+        elif args.model_name in ['bart', 'plbart']:
+            args.batch_size = 16 if torch.cuda.device_count() else 16 * torch.cuda.device_count()
+        else:
+            args.batch_size = 32 if torch.cuda.device_count() else 32 * torch.cuda.device_count()
+        if args.task in ['clone']:
+            args.batch_size = args.batch_size // 2
         # args.batch_size = 128 if args.model_name not in ['t5', 'codet5'] else 16
         args.warmup_steps = 1000
     elif args.few_shot < 128: #16,32,64
