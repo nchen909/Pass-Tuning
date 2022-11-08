@@ -2,7 +2,7 @@ import torch.nn as nn
 import torch
 import torch.nn.functional as F
 import numpy as np
-
+import os
 from transformers import AutoTokenizer, AutoModel, AutoConfig, T5ForConditionalGeneration, BartForConditionalGeneration, AutoModelForSeq2SeqLM, RobertaConfig, RobertaModel, RobertaTokenizer
 
 import logging
@@ -20,16 +20,16 @@ MODEL_CHECKPOINTS = {'roberta': 'roberta-base',
                      'plbart': 'uclanlp/plbart-base',
                      'unixcoder':'microsoft/unixcoder-base'}
 
-HUGGINGFACE_LOCALS = '/data/huggingface_models/'
+
 MODEL_LOCALS = {
-    'roberta': HUGGINGFACE_LOCALS + 'roberta-base',
-    'codebert':  HUGGINGFACE_LOCALS + 'codebert-base',
-    'graphcodebert':  HUGGINGFACE_LOCALS + 'graphcodebert-base',
-    't5':  HUGGINGFACE_LOCALS + 't5-base',
-    'codet5':  HUGGINGFACE_LOCALS + 'codet5-base',
-    'bart':  HUGGINGFACE_LOCALS + 'bart-base',
-    'plbart':  HUGGINGFACE_LOCALS + 'plbart-base',
-    'unixcoder':HUGGINGFACE_LOCALS + 'unixcoder-base'
+    'roberta': 'roberta-base',
+    'codebert': 'codebert-base',
+    'graphcodebert': 'graphcodebert-base',
+    't5': 't5-base',
+    'codet5':'codet5-base',
+    'bart': 'bart-base',
+    'plbart': 'plbart-base',
+    'unixcoder':'unixcoder-base',
 }
 MODEL_CLASSES = {'roberta': (AutoConfig, AutoModel, AutoTokenizer),
                  'codebert': (AutoConfig, AutoModel, AutoTokenizer),
@@ -55,7 +55,7 @@ def get_model_size(model):
 #unixcoder seq2seq unilm 怎么实现三个mask
 def bulid_or_load_gen_model(args):
     # checkpoint = MODEL_CHECKPOINTS[args.model_name]
-    checkpoint = MODEL_LOCALS[args.model_name]
+    checkpoint = os.path.join(args.huggingface_locals, MODEL_LOCALS[args.model_name])
     config_class, model_class, tokenizer_class = MODEL_CLASSES[args.model_name]
     config = config_class.from_pretrained(checkpoint)
     tokenizer = tokenizer_class.from_pretrained(checkpoint)
@@ -98,7 +98,7 @@ def bulid_or_load_gen_model(args):
 
 def bulid_or_load_cls_model(args):
     # checkpoint = MODEL_CHECKPOINTS[args.model_name]
-    checkpoint = MODEL_LOCALS[args.model_name]
+    checkpoint = os.path.join(args.huggingface_locals, MODEL_LOCALS[args.model_name])
     config_class, model_class, tokenizer_class = MODEL_CLASSES[args.model_name]
     config = config_class.from_pretrained(checkpoint)
     tokenizer = tokenizer_class.from_pretrained(checkpoint)

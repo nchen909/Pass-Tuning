@@ -30,7 +30,7 @@ rm data.zip
 
 ### Preparing local path
 
-Direct WORKDIR in run.sh, run_few_shot.sh to your path.
+Direct WORKDIR, HUGGINGFACE_LOCALS in run.sh, run_few_shot.sh to your path.
 
 ## Finetune
 
@@ -53,7 +53,6 @@ bash run_multi_task.sh
   `SUB_TASK` can be in picture below
 
 ![image-20221014233118653](https://pic.mathskiller909.com/img/20221027202855.png?x-oss-process=style/nchen909)
-
 
 | Category | Dataset   | Task              | Sub_task(LANG)                                     | Type           | Category | Description                                                                                                                  |
 | -------- | --------- | ----------------- | -------------------------------------------------- | -------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------- |

@@ -21,6 +21,8 @@ def add_args(parser):
                         help="For distributed training: local_rank")
     parser.add_argument("--no_cuda", action='store_true',
                         help="Avoid using CUDA when available")
+    parser.add_argument('--huggingface_locals', type=str, default='data/huggingface_locals',
+                    help="directory to save huggingface models")
     parser.add_argument("--cache_path", type=str, default='cache_data')
     parser.add_argument("--res_dir", type=str, default='results',
                         help='directory to save fine-tuning results')

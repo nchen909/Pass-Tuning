@@ -1,4 +1,5 @@
 WORKDIR="/data/pretrain-attention/CodePrompt"
+HUGGINGFACE_LOCALS="/data/huggingface_models/"
 export PYTHONPATH=$WORKDIR
 
 
@@ -41,7 +42,7 @@ if [[ ${SUB_TASK} == none ]]; then
     python ${RUN_FN} ${MULTI_TASK_AUG} \
     --do_test --do_train --do_eval --do_eval_bleu --save_last_checkpoints --always_save_model \
     --task ${TASK} --model_name ${MODEL_NAME} --data_num ${DATA_NUM}  \
-    --output_dir ${OUTPUT_DIR}  --summary_dir ${SUMMARY_DIR} \
+    --output_dir ${OUTPUT_DIR}  --summary_dir ${SUMMARY_DIR} --huggingface_locals ${HUGGINGFACE_LOCALS} \
     --data_dir ${WORKDIR}/data  --cache_path ${CACHE_DIR} --res_dir ${RES_DIR} --res_fn ${RES_FN} \
     2>&1 | tee ${LOG}
 else
@@ -51,7 +52,7 @@ else
       python ${RUN_FN} ${MULTI_TASK_AUG} \
       --do_test --do_train --do_eval --do_eval_bleu --save_last_checkpoints --always_save_model \
       --task ${TASK} --sub_task ${SUB_TASK} --model_name ${MODEL_NAME} --data_num ${DATA_NUM}  \
-      --output_dir ${OUTPUT_DIR}  --summary_dir ${SUMMARY_DIR} \
+      --output_dir ${OUTPUT_DIR}  --summary_dir ${SUMMARY_DIR} --huggingface_locals ${HUGGINGFACE_LOCALS} \
       --data_dir ${WORKDIR}/data  --cache_path ${CACHE_DIR} --res_dir ${RES_DIR} --res_fn ${RES_FN} \
       --few_shot $few_shot
       2>&1 | tee ${LOG}
