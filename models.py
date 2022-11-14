@@ -163,7 +163,7 @@ class Model4UniXcoder(nn.Module):
 class CloneModel(nn.Module):
     def __init__(self, encoder, config, tokenizer, args):
         super(CloneModel, self).__init__()
-        checkpoint = MODEL_LOCALS[args.model_name]
+        checkpoint = os.path.join(args.huggingface_locals, MODEL_LOCALS[args.model_name])
         config = AutoConfig.from_pretrained(checkpoint)
         tokenizer = AutoTokenizer.from_pretrained(checkpoint)
         self.encoder = encoder
