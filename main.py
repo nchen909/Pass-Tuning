@@ -256,7 +256,7 @@ def eval_bleu_epoch(args, eval_data, eval_examples, model, tokenizer, split_tag,
             if split_tag == 'test' and args.task in ['refine', 'translate', 'generate' , 'clone']:
                 args.lang = get_lang_by_task(args.task, args.sub_task)
                 codebleu = calc_code_bleu.get_codebleu(
-                    gold_fn, output_fn, args.lang,args)
+                    gold_fn, output_fn, args.lang,args=args)
         # except:
         #     bleu = 0.0
         #     codebleu = 0.0
