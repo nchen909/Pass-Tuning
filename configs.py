@@ -128,17 +128,17 @@ def set_hyperparas(args):
     args.weight_decay = 0.0
     if args.task == 'summarize':
         args.data_num = args.few_shot if args.few_shot > 0 else -1
-        args.lr = 5e-5
+        args.lr = 1e-5
         args.max_source_length = 256
         args.max_target_length = 128
     elif args.task == 'translate':
         args.data_num = args.few_shot if args.few_shot > 0 else -1
-        args.lr = 5e-5
+        args.lr = 1e-5
         args.max_source_length = 320
         args.max_target_length = 256
     elif args.task == 'refine':
         args.data_num = args.few_shot if args.few_shot > 0 else -1
-        args.lr = 5e-5
+        args.lr = 1e-5
         if args.sub_task == 'small':
             args.max_source_length = 130
             args.max_target_length = 120
@@ -147,22 +147,22 @@ def set_hyperparas(args):
             args.max_target_length = 240
     elif args.task == 'generate':
         args.data_num = args.few_shot if args.few_shot > 0 else -1
-        args.lr = 5e-5
+        args.lr = 1e-5
         args.max_source_length = 320
         args.max_target_length = 150
     elif args.task == 'complete':
         args.data_num = args.few_shot if args.few_shot > 0 else -1
-        args.lr = 8e-5
+        args.lr = 8e-6
         args.max_source_length = 256
         args.max_target_length = 256
     elif args.task == 'defect':
         args.data_num = args.few_shot * 2 if args.few_shot > 0 else -1
-        args.lr = 2e-5
+        args.lr = 5e-6
         args.max_source_length = 512
         args.max_target_length = 3  # as do not need to add lang ids
     elif args.task == 'clone':
         args.data_num = args.few_shot * 2 if args.few_shot > 0 else -1 
-        args.lr = 5e-5
+        args.lr = 1e-5
         args.max_source_length = 512#400
         args.max_target_length = 512#400
 
