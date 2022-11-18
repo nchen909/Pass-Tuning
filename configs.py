@@ -69,6 +69,10 @@ def add_args(parser):
                         help="Linear warmup over warmup_steps.")
     parser.add_argument("--batch_size", default=8, type=int,
                         help="Batch size per GPU/CPU for training.")
+    parser.add_argument("--dev_batch_size", default=32, type=int,
+                        help="Batch size per GPU/CPU for validating.")
+    parser.add_argument("--test_batch_size", default=32, type=int,
+                        help="Batch size per GPU/CPU for testing.")
     parser.add_argument("--attention_batch_size", default=100, type=int,
                         help="Batch size per GPU/CPU for computing attention.")
     # parser.add_argument('--layer_num', type=int, default=-1,
@@ -162,19 +166,22 @@ def set_hyperparas(args):
 
     if args.few_shot == -1:
         if args.task in ['clone']:
-            args.num_train_epochs = 5 if torch.cuda.device_count()<=1 else 5*torch.cuda.device_count()//2
+            args.num_train_epochs = 5 if not torch.cuda.is_available() else 5*torch.cuda.device_count()//2
         else:
-            args.num_train_epochs = 15 if torch.cuda.device_count()<=1 else 15*torch.cuda.device_count()//2
+            args.num_train_epochs = 15 if not torch.cuda.is_available() else 15*torch.cuda.device_count()//2
         if args.model_name in ['t5', 'codet5']:
-            args.batch_size = 8  if torch.cuda.device_count() else 8 * torch.cuda.device_count()
+            args.batch_size = 16  if not torch.cuda.is_available() else 16 * torch.cuda.device_count()
         elif args.model_name in ['bart', 'plbart']:
-            args.batch_size = 16 if torch.cuda.device_count() else 16 * torch.cuda.device_count()
+            args.batch_size = 32 if not torch.cuda.is_available() else 32 * torch.cuda.device_count()
         else:
-            args.batch_size = 32 if torch.cuda.device_count() else 32 * torch.cuda.device_count()
+            args.batch_size = 32 if not torch.cuda.is_available() else 32 * torch.cuda.device_count()
         if args.task in ['clone']:
             args.batch_size = args.batch_size // 2
         # args.batch_size = 128 if args.model_name not in ['t5', 'codet5'] else 16
         args.warmup_steps = 1000
+        args.dev_batch_size = args.batch_size * 4
+        args.test_batch_size = args.batch_size * 4
+
     elif args.few_shot < 128: #16,32,64
         args.num_train_epochs = 64
         # args.lr =5e-8

@@ -31,14 +31,14 @@ logger = logging.getLogger(__name__)
 
 def evaluate_cls(args, model, eval_examples, eval_data, write_to_pred=False):
     eval_sampler = SequentialSampler(eval_data)
-    eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=args.batch_size)
+    eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=args.dev_batch_size)
 
     # Eval!
     if write_to_pred == False:
         logger.info("***** Running evaluation *****")
         logger.info("  Num examples = %d", len(eval_examples))
         logger.info("  Num batches = %d", len(eval_dataloader))
-        logger.info("  Batch size = %d", args.batch_size)
+        logger.info("  Batch size = %d", args.dev_batch_size)
     eval_loss = 0.0
     nb_eval_steps = 0
     model.eval()
@@ -117,12 +117,12 @@ def evaluate_cls(args, model, eval_examples, eval_data, write_to_pred=False):
 
 def eval_ppl_epoch(args, eval_data, eval_examples, model, tokenizer):
     eval_sampler = SequentialSampler(eval_data)
-    eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=args.batch_size,
+    eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=args.dev_batch_size,
                                  num_workers=4, pin_memory=True)
     # Start evaluating model
     logger.info("  " + "***** Running ppl evaluation *****")
     logger.info("  Num examples = %d", len(eval_examples))
-    logger.info("  Batch size = %d", args.batch_size)
+    logger.info("  Batch size = %d", args.dev_batch_size)
 
     model.eval()
     eval_loss, batch_num = 0, 0
@@ -166,14 +166,20 @@ def eval_bleu_epoch(args, eval_data, eval_examples, model, tokenizer, split_tag,
     logger.info(
         "  ***** Running bleu evaluation on {} data*****".format(split_tag))
     logger.info("  Num examples = %d", len(eval_examples))
-    logger.info("  Batch size = %d", args.batch_size)
+    if split_tag == 'dev':
+        batch_size = args.dev_batch_size
+    elif split_tag == 'test':
+        batch_size = args.test_batch_size
+    else:
+        batch_size = args.batch_size
+    logger.info("  Batch size = %d", batch_size)
     eval_sampler = SequentialSampler(eval_data)
     if args.data_num == -1:
-        eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=args.batch_size,
+        eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=batch_size,
                                      num_workers=4, pin_memory=True)
     else:
         eval_dataloader = DataLoader(
-            eval_data, sampler=eval_sampler, batch_size=args.batch_size)
+            eval_data, sampler=eval_sampler, batch_size=batch_size)
 
     model.eval()
     pred_ids = []
@@ -721,7 +727,7 @@ def main():
     if args.do_test:
         
         logger.info("  " + "***** Testing *****")
-        logger.info("  Batch size = %d", args.batch_size)
+        logger.info("  Batch size = %d", args.test_batch_size)
         if args.task in ['summarize', 'translate', 'refine', 'generate','complete']:
             for criteria in ['best-bleu', 'best-ppl']:  # 'best-bleu', 'best-ppl', 'last'
                 file = os.path.join(
