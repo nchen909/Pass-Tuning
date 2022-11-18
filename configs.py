@@ -75,7 +75,7 @@ def add_args(parser):
                         help="Batch size per GPU/CPU for testing.")
     parser.add_argument("--attention_batch_size", default=100, type=int,
                         help="Batch size per GPU/CPU for computing attention.")
-    parser.add_argument("--is_classification_sample", default=0, type=int,
+    parser.add_argument("--is_classification_sample", default=1, type=int,
                         help="clone&defect data is large, 0 for not sample and 1 for sample")                    
     # parser.add_argument('--layer_num', type=int, default=-1,
     #                 help="layer which attention is concerned, -1 for last layer, else for all 0-11 layers")
@@ -170,10 +170,15 @@ def set_hyperparas(args):
         if args.task in ['clone']:
             args.num_train_epochs = 1 if not torch.cuda.is_available() else 2*torch.cuda.device_count()//2
             #for clone BCB full data!!!
-        else:
+            if args.is_classification_sample:
+                args.num_train_epochs = args.num_train_epochs * 10
+        elif args.task in ['defect']:
             args.num_train_epochs = 2 if not torch.cuda.is_available() else 4*torch.cuda.device_count()//2
-        if args.is_classification_sample:
-            args.num_train_epochs = args.num_train_epochs * 10
+            if args.is_classification_sample:
+                args.num_train_epochs = args.num_train_epochs * 10
+        else:
+            args.num_train_epochs = 50 if not torch.cuda.is_available() else 50*torch.cuda.device_count()//2
+
         if args.model_name in ['t5', 'codet5']:
             args.batch_size = 16  if not torch.cuda.is_available() else 16 * torch.cuda.device_count()
         elif args.model_name in ['bart', 'plbart']:
