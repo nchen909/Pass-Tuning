@@ -619,8 +619,8 @@ def load_and_cache_clone_data(args, filename, pool, tokenizer, split_tag, is_sam
     cache_fn = '{}/{}.pt'.format(args.cache_path, split_tag +
                                 '_all' if args.data_num == -1 else '_%d' % args.data_num)
     examples = read_examples(filename, -1, args.task)
-
-    examples = random.sample(examples, int(len(examples) * 0.1))
+    if args.is_classification_sample:
+        examples = random.sample(examples, int(len(examples) * 0.1))
     if args.few_shot!=-1:
         examples_True = [e for e in examples if e.label == 1]
         examples_False = [e for e in examples if e.label == 0]
@@ -666,7 +666,7 @@ def load_and_cache_clone_data(args, filename, pool, tokenizer, split_tag, is_sam
 def load_and_cache_defect_data(args, filename, pool, tokenizer, split_tag, is_sample=False):
     cache_fn = os.path.join(args.cache_path, split_tag)
     examples = read_examples(filename, -1, args.task)
-    if is_sample:
+    if is_sample or args.is_classification_sample:
         examples = random.sample(examples, int(len(examples) * 0.1))
     elif args.few_shot != -1:
         examples_True = [e for e in examples if e.target == 1]

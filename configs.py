@@ -75,6 +75,8 @@ def add_args(parser):
                         help="Batch size per GPU/CPU for testing.")
     parser.add_argument("--attention_batch_size", default=100, type=int,
                         help="Batch size per GPU/CPU for computing attention.")
+    parser.add_argument("--is_classification_sample", default=0, type=int,
+                        help="clone&defect data is large, 0 for not sample and 1 for sample")                    
     # parser.add_argument('--layer_num', type=int, default=-1,
     #                 help="layer which attention is concerned, -1 for last layer, else for all 0-11 layers")
     # parser.add_argument('--quantile_threshold', type=float, default=0.75,
@@ -166,9 +168,12 @@ def set_hyperparas(args):
 
     if args.few_shot == -1:
         if args.task in ['clone']:
-            args.num_train_epochs = 5 if not torch.cuda.is_available() else 5*torch.cuda.device_count()//2
+            args.num_train_epochs = 1 if not torch.cuda.is_available() else 2*torch.cuda.device_count()//2
+            #for clone BCB full data!!!
         else:
-            args.num_train_epochs = 15 if not torch.cuda.is_available() else 15*torch.cuda.device_count()//2
+            args.num_train_epochs = 2 if not torch.cuda.is_available() else 4*torch.cuda.device_count()//2
+        if args.is_classification_sample:
+            args.num_train_epochs = args.num_train_epochs * 10
         if args.model_name in ['t5', 'codet5']:
             args.batch_size = 16  if not torch.cuda.is_available() else 16 * torch.cuda.device_count()
         elif args.model_name in ['bart', 'plbart']:
@@ -179,8 +184,8 @@ def set_hyperparas(args):
             args.batch_size = args.batch_size // 2
         # args.batch_size = 128 if args.model_name not in ['t5', 'codet5'] else 16
         args.warmup_steps = 1000
-        args.dev_batch_size = args.batch_size * 4
-        args.test_batch_size = args.batch_size * 4
+        args.dev_batch_size = args.batch_size * 4 if not torch.cuda.is_available() else args.batch_size//torch.cuda.device_count()*4
+        args.test_batch_size = args.batch_size * 4 if not torch.cuda.is_available() else args.batch_size//torch.cuda.device_count()*4
 
     elif args.few_shot < 128: #16,32,64
         args.num_train_epochs = 64
