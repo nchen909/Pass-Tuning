@@ -189,8 +189,8 @@ def set_hyperparas(args):
             args.batch_size = args.batch_size // 2
         # args.batch_size = 128 if args.model_name not in ['t5', 'codet5'] else 16
         args.warmup_steps = 1000
-        args.dev_batch_size = args.batch_size * 4 if not torch.cuda.is_available() else args.batch_size//torch.cuda.device_count()*4
-        args.test_batch_size = args.batch_size * 4 if not torch.cuda.is_available() else args.batch_size//torch.cuda.device_count()*4
+        args.dev_batch_size = args.batch_size * 1 if not torch.cuda.is_available() else args.batch_size//torch.cuda.device_count()*1
+        args.test_batch_size = args.batch_size * 1 if not torch.cuda.is_available() else args.batch_size//torch.cuda.device_count()*1
 
     elif args.few_shot < 128: #16,32,64
         args.num_train_epochs = 64
