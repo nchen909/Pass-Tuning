@@ -413,7 +413,7 @@ def load_and_cache_gen_data(args, filename, pool, tokenizer, split_tag, only_src
     #         assert len(examples) == args.few_shot
         
     #     args.warmup_steps = len(examples) / 100
-    if is_sample or args.few_shot != -1:
+    if split_tag!='test' and is_sample or args.few_shot != -1 :
         if args.few_shot <= len(examples):
             examples = random.sample(examples, min(5000, len(examples)) if args.few_shot == -1 else args.few_shot)
         else:
@@ -619,23 +619,23 @@ def load_and_cache_clone_data(args, filename, pool, tokenizer, split_tag, is_sam
     cache_fn = '{}/{}.pt'.format(args.cache_path, split_tag +
                                 '_all' if args.data_num == -1 else '_%d' % args.data_num)
     examples = read_examples(filename, -1, args.task)
-    if args.is_classification_sample:
+    if is_sample or args.is_classification_sample:
         examples = random.sample(examples, int(len(examples) * 0.1))
-    if args.few_shot!=-1:
+    if split_tag!='test' and args.few_shot!=-1:
         examples_True = [e for e in examples if e.label == 1]
         examples_False = [e for e in examples if e.label == 0]
         examples_True = random.sample(examples_True,args.few_shot)
         examples_False = random.sample(examples_False,args.few_shot)
         examples = examples_True + examples_False
 
-    if args.few_shot != -1:
+    if split_tag!='test' and args.few_shot != -1:
         calc_stats(examples, tokenizer, is_tokenize=True)
 
     if os.path.exists(cache_fn) and args.few_shot == -1:
         logger.info("Load cache data from %s", cache_fn)
         data = torch.load(cache_fn)
     else:
-        if args.few_shot == -1:
+        if split_tag!='test' and args.few_shot == -1:
             logger.info("Sample 10 percent of data from %s", filename)
         elif args.data_num == -1:
             logger.info("Create cache data into %s", cache_fn)
@@ -668,7 +668,7 @@ def load_and_cache_defect_data(args, filename, pool, tokenizer, split_tag, is_sa
     examples = read_examples(filename, -1, args.task)
     if is_sample or args.is_classification_sample:
         examples = random.sample(examples, int(len(examples) * 0.1))
-    elif args.few_shot != -1:
+    elif split_tag!='test' and args.few_shot != -1:
         examples_True = [e for e in examples if e.target == 1]
         examples_False = [e for e in examples if e.target == 0]
         examples_True = random.sample(examples_True,args.few_shot)
@@ -679,7 +679,7 @@ def load_and_cache_defect_data(args, filename, pool, tokenizer, split_tag, is_sa
         logger.info("Load cache data from %s", cache_fn)
         data = torch.load(cache_fn)
     else:
-        if is_sample:
+        if split_tag!='test' and is_sample:
             logger.info("Sample 10 percent of data from %s", filename)
         elif args.data_num == -1:
             logger.info("Create cache data into %s", cache_fn)
