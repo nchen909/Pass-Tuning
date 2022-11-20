@@ -397,7 +397,14 @@ def main():
                             tr_loss * args.gradient_accumulation_steps / (nb_tr_steps + 1), 4)
                         bar.set_description("[{}] Train loss {}".format(
                             cur_epoch, round(train_loss, 3)))
-        
+                    # result = {'epoch': cur_epoch,
+                    #         'global_step': global_step, 'train_loss': round(train_loss, 3)}
+                    # for key in sorted(result.keys()):
+                    #     logger.info("  %s = %s", key, str(result[key]))
+                        if args.data_num == -1:
+                            tb_writer.add_scalar('train_loss_per_epoch', round(train_loss, 3), cur_epoch)
+                            tb_writer.add_scalar('train_loss_per_step', round(train_loss, 3), global_step)
+
 
                 if args.do_eval:
                     # Eval model with dev dataset

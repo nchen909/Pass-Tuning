@@ -21,9 +21,8 @@ for model in "${model_lst[@]}"; do
     CUDA_VISIBLE_DEVICES=0,1 bash run.sh $model generate
 
     
-    
-    # CUDA_VISIBLE_DEVICES=0,1 bash run.sh $model summarize ruby
-    # CUDA_VISIBLE_DEVICES=0,1 bash run.sh $model summarize javascript
+    CUDA_VISIBLE_DEVICES=2,3 bash run.sh $model summarize ruby
+    CUDA_VISIBLE_DEVICES=2,3 bash run.sh $model summarize javascript
     # CUDA_VISIBLE_DEVICES=0,1 bash run.sh $model summarize go
     # CUDA_VISIBLE_DEVICES=0,1 bash run.sh $model summarize python
     # CUDA_VISIBLE_DEVICES=0,1 bash run.sh $model summarize java
