@@ -202,4 +202,4 @@ def set_hyperparas(args):
     elif args.few_shot < 2048: #512,1024
         args.num_train_epochs = 32
         args.batch_size = 8 if args.model_name not in ['t5', 'codet5'] else 4
-    args.patience = min( 10, args.num_train_epochs//5*5)
+    args.patience = args.num_train_epochs#min( 10, args.num_train_epochs//5*5)
