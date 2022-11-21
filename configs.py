@@ -172,13 +172,15 @@ def set_hyperparas(args):
             #for clone BCB full data!!!
             if args.is_classification_sample:
                 args.num_train_epochs = args.num_train_epochs * 10
+            args.patience = args.num_train_epochs#min( 10, args.num_train_epochs//5*5)
         elif args.task in ['defect']:
             args.num_train_epochs = 5 if not torch.cuda.is_available() else 10*torch.cuda.device_count()//2
             if args.is_classification_sample:
                 args.num_train_epochs = args.num_train_epochs * 10
+            args.patience = args.num_train_epochs#min( 10, args.num_train_epochs//5*5)
         else:
             args.num_train_epochs = 60 if not torch.cuda.is_available() else 60*torch.cuda.device_count()//2
-
+            args.patience = min( 10, args.num_train_epochs//5)
         if args.model_name in ['t5', 'codet5']:
             args.batch_size = 16  if not torch.cuda.is_available() else 16 * torch.cuda.device_count()
         elif args.model_name in ['bart', 'plbart']:
@@ -202,4 +204,3 @@ def set_hyperparas(args):
     elif args.few_shot < 2048: #512,1024
         args.num_train_epochs = 32
         args.batch_size = 8 if args.model_name not in ['t5', 'codet5'] else 4
-    args.patience = args.num_train_epochs#min( 10, args.num_train_epochs//5*5)
