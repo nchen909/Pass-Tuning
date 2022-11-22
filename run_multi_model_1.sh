@@ -7,9 +7,9 @@ model_lst=(plbart)
 for model in "${model_lst[@]}"; do
 
     #NLU
+    CUDA_VISIBLE_DEVICES=0 bash run.sh $model defect
     CUDA_VISIBLE_DEVICES=0 bash run.sh $model clone
 
-    CUDA_VISIBLE_DEVICES=0 bash run.sh $model defect
     # #you can indeed run defect in main.py(run_gen.py),
     # # in which 'em' refers to eval_acc * 100, and bleu=codebleu=0
 
