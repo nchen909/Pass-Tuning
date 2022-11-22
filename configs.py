@@ -187,6 +187,8 @@ def set_hyperparas(args):
             args.batch_size = 32 if not torch.cuda.is_available() else 32 * torch.cuda.device_count()
         else:
             args.batch_size = 32 if not torch.cuda.is_available() else 32 * torch.cuda.device_count()
+            if args.task=='refine' or args.task=='generate':
+                args.batch_size *= 2
         if args.task in ['clone']:
             args.batch_size = args.batch_size // 2
         # args.batch_size = 128 if args.model_name not in ['t5', 'codet5'] else 16

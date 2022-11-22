@@ -7,27 +7,26 @@ model_lst=(plbart)
 for model in "${model_lst[@]}"; do
 
     #NLU
-    # CUDA_VISIBLE_DEVICES=2 bash run.sh $model clone
+    # CUDA_VISIBLE_DEVICES=4 bash run.sh $model clone
 
-    # CUDA_VISIBLE_DEVICES=2 bash run.sh $model defect
-    # # #you can indeed run defect in main.py(run_gen.py),
-    # # # in which 'em' refers to eval_acc * 100, and bleu=codebleu=0
+    # CUDA_VISIBLE_DEVICES=4 bash run.sh $model defect
+    # #you can indeed run defect in main.py(run_gen.py),
+    # # in which 'em' refers to eval_acc * 100, and bleu=codebleu=0
 
-    # # #NLG
-    # CUDA_VISIBLE_DEVICES=2 bash run.sh $model translate java-cs
-    # CUDA_VISIBLE_DEVICES=2 bash run.sh $model translate cs-java
-    CUDA_VISIBLE_DEVICES=2 bash run.sh $model refine small
-    # CUDA_VISIBLE_DEVICES=2 bash run.sh $model refine medium
-    # CUDA_VISIBLE_DEVICES=2 bash run.sh $model generate
+    # #NLG
+    # CUDA_VISIBLE_DEVICES=4 bash run.sh $model translate java-cs
+    # CUDA_VISIBLE_DEVICES=4 bash run.sh $model translate cs-java
+    # CUDA_VISIBLE_DEVICES=4 bash run.sh $model refine small
+    # CUDA_VISIBLE_DEVICES=4 bash run.sh $model refine medium
+    CUDA_VISIBLE_DEVICES=4 bash run.sh $model generate
 
     
-    
-    # CUDA_VISIBLE_DEVICES=2 bash run.sh $model summarize ruby
-    # CUDA_VISIBLE_DEVICES=2 bash run.sh $model summarize javascript
-    # CUDA_VISIBLE_DEVICES=2 bash run.sh $model summarize go
-    # CUDA_VISIBLE_DEVICES=2 bash run.sh $model summarize python
-    # CUDA_VISIBLE_DEVICES=2 bash run.sh $model summarize java
-    # CUDA_VISIBLE_DEVICES=2 bash run.sh $model summarize php
+    # CUDA_VISIBLE_DEVICES=4 bash run.sh $model summarize ruby
+    # CUDA_VISIBLE_DEVICES=4 bash run.sh $model summarize javascript
+    # CUDA_VISIBLE_DEVICES=4 bash run.sh $model summarize go
+    # CUDA_VISIBLE_DEVICES=4 bash run.sh $model summarize python
+    # CUDA_VISIBLE_DEVICES=4 bash run.sh $model summarize java
+    # CUDA_VISIBLE_DEVICES=4 bash run.sh $model summarize php
 
 done
 
