@@ -254,6 +254,7 @@ class DefectModel(nn.Module):
 
     def get_t5_vec(self, source_ids):
         attention_mask = source_ids.ne(self.tokenizer.pad_token_id)
+        
         outputs = self.encoder(input_ids=source_ids, attention_mask=attention_mask,
                                labels=source_ids, decoder_attention_mask=attention_mask, output_hidden_states=True)
         hidden_states = outputs['decoder_hidden_states'][-1]
