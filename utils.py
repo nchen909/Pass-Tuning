@@ -420,7 +420,7 @@ def load_and_cache_gen_data(args, filename, pool, tokenizer, split_tag, only_src
                 sample_num = min(1500, len(examples)//2)
             elif args.task=='refine':#evalnum_before5000
                 sample_num = min(1500, len(examples)//4)
-            examples = random.sample(examples, sample_num) if args.few_shot == -1 else args.few_shot)
+            examples = random.sample(examples, sample_num if args.few_shot == -1 else args.few_shot)
         else:
             # for CodeTrans dataset, dev&test example len = 500, may smaller than few-shot case
             # we compensate some examples from train set to fill examples to args.few_shot
