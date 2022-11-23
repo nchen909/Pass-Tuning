@@ -1,6 +1,6 @@
 #!/bin/bash
 
-model_lst=(plbart)
+model_lst=(codet5)
 #(roberta codebert graphcodebert codet5 plbart unixcoder)
 # cuda=0
 
