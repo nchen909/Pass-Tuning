@@ -27,7 +27,7 @@ else
   RES_FN=results/${TASK}/${SUB_TASK}/${FULL_MODEL_TAG}.txt
 fi
 
-CACHE_DIR=${OUTPUT_DIR}/cache_data
+CACHE_DIR=${WORKDIR}/.cache
 LOG=${OUTPUT_DIR}/train.log
 mkdir -p ${OUTPUT_DIR}
 mkdir -p ${CACHE_DIR}

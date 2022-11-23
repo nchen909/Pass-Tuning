@@ -168,19 +168,19 @@ def set_hyperparas(args):
 
     if args.few_shot == -1:
         if args.task in ['clone']:
-            args.num_train_epochs = 1 if not torch.cuda.is_available() else 2*torch.cuda.device_count()//2
+            args.num_train_epochs = 2# if not torch.cuda.is_available() else 2*torch.cuda.device_count()//2
             #for clone BCB full data!!!
             if args.is_classification_sample:
                 args.num_train_epochs = args.num_train_epochs * 10
             args.patience = args.num_train_epochs#min( 10, args.num_train_epochs//5*5)
         elif args.task in ['defect']:
-            args.num_train_epochs = 5 if not torch.cuda.is_available() else 10*torch.cuda.device_count()//2*2
+            args.num_train_epochs = 10 #if not torch.cuda.is_available() else 10*torch.cuda.device_count()//2*2
             if args.is_classification_sample:
                 args.num_train_epochs = args.num_train_epochs * 10
             args.patience = args.num_train_epochs#min( 10, args.num_train_epochs//5*5)
         else:
-            args.num_train_epochs = 60 if not torch.cuda.is_available() else 60*torch.cuda.device_count()//2
-            args.patience = min( 10, args.num_train_epochs//5)
+            args.num_train_epochs = 60# if not torch.cuda.is_available() else 60*torch.cuda.device_count()//2
+            args.patience = min( 10, args.num_train_epochs//5*2)
         if args.model_name in ['t5', 'codet5']:
             args.batch_size = 16  if not torch.cuda.is_available() else 16 * torch.cuda.device_count()
         elif args.model_name in ['bart', 'plbart']:
