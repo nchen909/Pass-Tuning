@@ -333,9 +333,9 @@ def main():
         num_train_optimization_steps = args.num_train_epochs * \
             len(train_dataloader)
         save_steps = max(len(train_dataloader), 1)
-        if not args.is_classification_sample and args.task in ['clone']:
+        if not args.is_clone_sample and args.task in ['clone']:
             save_steps = save_steps//20
-        if not args.is_classification_sample and args.task in ['defect']:
+        if args.task in ['defect']:
             save_steps = save_steps//4
         scheduler = get_linear_schedule_with_warmup(optimizer,
                                                     num_warmup_steps=int(args.warmup_steps) if args.warmup_steps >= 1 else num_train_optimization_steps * args.warmup_steps,
