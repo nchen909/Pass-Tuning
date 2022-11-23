@@ -11,3 +11,4 @@ results/
 .vscode/
 run_log/
 tree-sitter-*/
+.cache/

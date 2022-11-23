@@ -686,7 +686,7 @@ def load_and_cache_defect_data(args, filename, pool, tokenizer, split_tag, is_sa
         data = torch.load(cache_fn)
     else:
         if split_tag!='test' and is_sample:
-            logger.info("Sample 10 percent of data from %s", filename)
+            logger.info("Sample min(5000, len(examples)) of data from %s", filename)
         elif args.data_num == -1:
             logger.info("Create cache data into %s", cache_fn)
         tuple_examples = [(example, idx, tokenizer, args) for idx, example in enumerate(examples)]

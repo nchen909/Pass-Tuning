@@ -76,16 +76,16 @@ def evaluate_cls(args, model, eval_examples, eval_data, write_to_pred=False):
 
         result = {
             "eval_loss": float(perplexity),
-            "eval_acc": round(eval_acc, 4),
+            "eval_acc": round(eval_acc, 4) * 100,
         }
     elif args.task == 'clone':
         recall = recall_score(labels, preds)
         precision = precision_score(labels, preds)
         f1 = f1_score(labels, preds)
         result = {
-            "eval_recall": float(recall),
-            "eval_precision": float(precision),
-            "eval_f1": float(f1),
+            "eval_recall": float(recall) * 100,
+            "eval_precision": float(precision) * 100,
+            "eval_f1": float(f1) * 100,
             "eval_threshold": 0.5,
         }
     if write_to_pred == False:
@@ -336,7 +336,7 @@ def main():
         if not args.is_clone_sample and args.task in ['clone']:
             save_steps = save_steps//20
         if args.task in ['defect']:
-            save_steps = save_steps//4
+            save_steps = save_steps//4#4
         scheduler = get_linear_schedule_with_warmup(optimizer,
                                                     num_warmup_steps=int(args.warmup_steps) if args.warmup_steps >= 1 else num_train_optimization_steps * args.warmup_steps,
                                                     num_training_steps=num_train_optimization_steps)
@@ -590,7 +590,7 @@ def main():
                         eval_acc = result['eval_acc']
 
                         if args.data_num == -1:
-                            tb_writer.add_scalar('dev_acc', round(eval_acc, 4), cur_epoch)
+                            tb_writer.add_scalar('dev_acc', round(eval_acc, 4), len(train_dataloader)//save_steps*cur_epoch+(step + 1) // save_steps-1)
 
                         # save last checkpoint
                         last_output_dir = os.path.join(args.output_dir, 'checkpoint-last')
@@ -692,7 +692,7 @@ def main():
                         eval_f1 = result['eval_f1']
 
                         if args.data_num == -1:
-                            tb_writer.add_scalar('dev_f1', round(eval_f1, 4), cur_epoch)
+                            tb_writer.add_scalar('dev_f1', round(eval_f1, 4), len(train_dataloader)//save_steps*cur_epoch+(step + 1) // save_steps-1)
 
                         # save last checkpoint
                         last_output_dir = os.path.join(args.output_dir, 'checkpoint-last')
