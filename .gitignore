@@ -12,3 +12,4 @@ results/
 run_log/
 tree-sitter-*/
 .cache/
+tensorboard/
