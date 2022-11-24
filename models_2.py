@@ -7,6 +7,7 @@ from transformers import AutoTokenizer, AutoModel, AutoConfig, T5ForConditionalG
 
 import logging
 import sys
+from prefix_encoder import PrefixEncoder
 #import codecs
 #sys.stdout = codecs.getwriter("utf-8")(sys.stdout.detach())
 logger = logging.getLogger(__name__)
@@ -39,6 +40,18 @@ MODEL_CLASSES = {'roberta': (AutoConfig, AutoModel, AutoTokenizer),
                  'codet5': (AutoConfig, T5ForConditionalGeneration, AutoTokenizer),
                  'bart': (AutoConfig, BartForConditionalGeneration, AutoTokenizer),
                  'plbart':(AutoConfig, AutoModelForSeq2SeqLM, AutoTokenizer)}
+
+# model_name_to_backbone = {
+#     "roberta": "roberta",
+#     "codebert": "roberta",
+#     "graphcodebert": "roberta",
+#     "unixcoder": "roberta",
+#     "t5": "t5",
+#     "codet5": "t5",
+#     "bart": "bart",
+#     "plbart": "bart",
+# }
+
 
 # MODEL_CLASSES = {'roberta': (RobertaConfig, RobertaModel, RobertaTokenizer),
 #                  't5': (T5Config, T5ForConditionalGeneration, T5Tokenizer),
@@ -107,6 +120,7 @@ def bulid_or_load_cls_model(args):
     #     model = Model4UniXcoder(model,config,tokenizer,args)
 
     model = model_class.from_pretrained(checkpoint, output_attentions=True)
+    
     if args.task == 'defect':
         model = DefectModel(model, config, tokenizer, args)
     elif args.task == 'clone':
@@ -161,21 +175,76 @@ class Model4UniXcoder(nn.Module):
             return cos_sim
 
 class CloneModel(nn.Module):
-    def __init__(self, encoder, config, tokenizer, args):
+    def __init__(self, encoder: AutoModel, config, tokenizer, args):
         super(CloneModel, self).__init__()
         checkpoint = os.path.join(args.huggingface_locals, MODEL_LOCALS[args.model_name])
         config = AutoConfig.from_pretrained(checkpoint)
         tokenizer = AutoTokenizer.from_pretrained(checkpoint)
-        self.encoder = encoder
+        self.encoder = encoder # backbone
+        # backbone_type = model_name_to_backbone[args.model_name]
+        # embeddings_weight = None
+        # if backbone_type == 'roberta':
+        #     embeddings_weight = self.encoder.embeddings.word_embeddings.weight
+        # elif backbone_type == 't5':
+        #     embeddings_weight = self.encoder.embeddings.word_embeddings.weight
+        # elif backbone_type == 'bart':
+        #     embeddings_weight = self.encoder.embeddings.word_embeddings.weight
+        embeddings_weight = self.encoder.embeddings.word_embeddings.weight
+        
         self.config = config
         self.tokenizer = tokenizer
         self.classifier = RobertaClassificationHead(config)
         self.args = args
+        # ============ add ==========
+        for param in self.encoder.parameters():
+            param.requires_grad = False   #bert的参数是定死的   这里在code里加进来
+        # load retrieved prefix code tokens
+        self.code_prefix_tokens = torch.Tensor([10243, 1045, 34, 1003, 53,222]).long().cuda()
+        self.code_prefix_matrix = torch.ones(6, 6).cuda()
+        self.pre_seq_len = len(self.code_prefix_tokens) # 5
+        self.n_layer = config.num_hidden_layers
+        self.n_head = config.num_attention_heads
+        self.n_embd = config.hidden_size // config.num_attention_heads
+        # add prefix encoder
+        self.prefix_encoder = PrefixEncoder(self.config, embeddings_weight)
+        self.dropout = torch.nn.Dropout(config.hidden_dropout_prob)
+        # ========================  ==
+    
+    # ===== add ====
+    def get_prompt(self, batch_size):
+        code_prefix_tokens = self.code_prefix_tokens.unsqueeze(0).expand(batch_size, -1).to(self.encoder.device)
+        code_prefix_matrix = self.code_prefix_matrix.unsqueeze(0).expand(batch_size, -1, -1).to(self.encoder.device)
+        past_key_values = self.prefix_encoder(code_prefix_tokens, code_prefix_matrix)
+        # bsz, seqlen, _ = past_key_values.shape
+        past_key_values = past_key_values.view(
+            batch_size,
+            self.pre_seq_len,
+            self.n_layer * 2, 
+            self.n_head,
+            self.n_embd
+        )
+        past_key_values = self.dropout(past_key_values)
+        past_key_values = past_key_values.permute([2, 0, 3, 1, 4]).split(2)
+        return past_key_values
+
+    # =================
 
     def get_t5_vec(self, source_ids):
         attention_mask = source_ids.ne(self.tokenizer.pad_token_id)
-        outputs = self.encoder(input_ids=source_ids, attention_mask=attention_mask,
-                               labels=source_ids, decoder_attention_mask=attention_mask, output_hidden_states=True)
+        # ============= add  ===================
+        batch_size = attention_mask.shape[0]
+        past_key_values = self.get_prompt(batch_size=batch_size) # add
+        prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len).to(self.encoder.device)
+        attention_mask = torch.cat((prefix_attention_mask, attention_mask.float()), dim=1)
+        # ======================================
+        outputs = self.encoder(
+            input_ids=source_ids, 
+            attention_mask=attention_mask,
+            labels=source_ids, 
+            decoder_attention_mask=attention_mask, 
+            output_hidden_states=True, 
+            past_key_values=past_key_values # add
+            )
         hidden_states = outputs['decoder_hidden_states'][-1]
         eos_mask = source_ids.eq(self.config.eos_token_id)
 
@@ -187,8 +256,20 @@ class CloneModel(nn.Module):
 
     def get_bart_vec(self, source_ids):
         attention_mask = source_ids.ne(self.tokenizer.pad_token_id)
-        outputs = self.encoder(input_ids=source_ids, attention_mask=attention_mask,
-                               labels=source_ids, decoder_attention_mask=attention_mask, output_hidden_states=True)
+        # ============= add  ===================
+        batch_size = attention_mask.shape[0]
+        past_key_values = self.get_prompt(batch_size=batch_size) # add
+        prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len).to(self.encoder.device)
+        attention_mask = torch.cat((prefix_attention_mask, attention_mask.float()), dim=1)
+        # ======================================
+        outputs = self.encoder(
+            input_ids=source_ids, 
+            attention_mask=attention_mask,
+            labels=source_ids, 
+            decoder_attention_mask=attention_mask, 
+            output_hidden_states=True,
+            past_key_values=past_key_values # add
+            )
         hidden_states = outputs['decoder_hidden_states'][-1]
         eos_mask = source_ids.eq(self.config.eos_token_id)
 
@@ -200,17 +281,41 @@ class CloneModel(nn.Module):
 
     def get_roberta_vec(self, source_ids):
         attention_mask = source_ids.ne(self.tokenizer.pad_token_id)
-        vec = self.encoder(input_ids=source_ids, attention_mask=attention_mask)[0][:, 0, :]
+        # ============= add  ===================
+        batch_size = attention_mask.shape[0]
+        past_key_values = self.get_prompt(batch_size=batch_size) # shape: (2, 6, 12, 6, 64)
+        prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len).to(self.encoder.device)
+        attention_mask = torch.cat((prefix_attention_mask, attention_mask.float()), dim=1)
+        # ======================================
+        vec = self.encoder(
+            input_ids=source_ids, 
+            attention_mask=attention_mask, 
+            past_key_values=past_key_values # add
+            )[0][:, 0, :]
         return vec
 
     def get_unixcoder_vec(self, source_ids):
-        outputs = self.encoder(source_ids,attention_mask=source_ids.ne(1))[0]#shape:batch_size*max_len512*hidden_size768
+        attention_mask = source_ids.ne(1)
+        # ============= add  ===================
+        batch_size = attention_mask.shape[0]
+        past_key_values = self.get_prompt(batch_size=batch_size) # add
+        prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len).to(self.encoder.device)
+        attention_mask = torch.cat((prefix_attention_mask, attention_mask.float()), dim=1)
+        # ======================================
+        # outputs = self.encoder(source_ids,attention_mask=source_ids.ne(1))[0]#shape:batch_size*max_len512*hidden_size768
+        outputs = self.encoder(
+            source_ids,
+            attention_mask=attention_mask,
+            past_key_values=past_key_values # add
+        )[0]#shape:batch_size*max_len512*hidden_size768
         outputs = (outputs * source_ids.ne(1)[:,:,None]).sum(1)/source_ids.ne(1).sum(1)[:,None]#shape:batch_size*hidden_size
         outputs = outputs.reshape(-1,2,outputs.size(-1))#shape:batch_size/2 *2*hidden_size
         outputs = torch.nn.functional.normalize(outputs, p=2, dim=-1)
         cos_sim = (outputs[:,0]*outputs[:,1]).sum(-1)
 
         return cos_sim #cos_sim, labels
+    
+
         
     def forward(self, source_ids=None, labels=None):
         source_ids = source_ids.view(-1, self.args.max_source_length)#[batch*2,512]
