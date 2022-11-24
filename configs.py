@@ -172,12 +172,12 @@ def set_hyperparas(args):
             #for clone BCB full data!!!
             if args.is_clone_sample:
                 args.num_train_epochs = args.num_train_epochs * 10
-            args.patience = args.num_train_epochs#min( 10, args.num_train_epochs//5*5)
+            args.patience = args.num_train_epochs*1000#min( 10, args.num_train_epochs//5*5)
         elif args.task in ['defect']:
             args.num_train_epochs = 40 #if not torch.cuda.is_available() else 10*torch.cuda.device_count()//2*2
             # if args.is_clone_sample:
             #     args.num_train_epochs = args.num_train_epochs * 10
-            args.patience = args.num_train_epochs#min( 10, args.num_train_epochs//5*5)
+            args.patience = args.num_train_epochs*1000#min( 10, args.num_train_epochs//5*5)
         else:
             args.num_train_epochs = 60# if not torch.cuda.is_available() else 60*torch.cuda.device_count()//2
             args.patience = min( 10, args.num_train_epochs//5*2)
@@ -190,7 +190,7 @@ def set_hyperparas(args):
             if args.task=='refine' or args.task=='generate':
                 args.batch_size *= 2
         if args.task in ['clone']:
-            args.batch_size = args.batch_size // 2
+            args.batch_size = 6#args.batch_size // 2
         # args.batch_size = 128 if args.model_name not in ['t5', 'codet5'] else 16
         args.warmup_steps = 1000
         args.dev_batch_size = args.batch_size * 1 if not torch.cuda.is_available() else args.batch_size//torch.cuda.device_count()*1

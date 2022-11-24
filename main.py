@@ -621,7 +621,7 @@ def main():
                         else:
                             not_acc_inc_cnt += 1
                             logger.info("acc does not increase for %d epochs", not_acc_inc_cnt)
-                            if not_acc_inc_cnt > args.patience:
+                            if not_acc_inc_cnt > args.patience*len(train_dataloader)//save_steps:
                                 logger.info("Early stop as acc do not increase for %d times", not_acc_inc_cnt)
                                 fa.write("[%d] Early stop as not_acc_inc_cnt=%d\n" % (cur_epoch, not_acc_inc_cnt))
                                 is_early_stop = True
@@ -654,7 +654,7 @@ def main():
                             labels = batch[1].to(args.device) 
                             loss, logits = model(source_ids, labels)
                         else:
-                            batch = tuple(t.to(args.device) for t in batch)
+                            batch = tuple(t.to(args.device) for t in batch)#shape: (2*(batch_size, seq_len))
                             source_ids, labels = batch #[batch,1024] [batch]
                             loss, logits = model(source_ids, labels)
 
@@ -723,7 +723,7 @@ def main():
                         else:
                             not_f1_inc_cnt += 1
                             logger.info("F1 does not increase for %d epochs", not_f1_inc_cnt)
-                            if not_f1_inc_cnt > args.patience:
+                            if not_f1_inc_cnt > args.patience*len(train_dataloader)//save_steps:
                                 logger.info("Early stop as f1 do not increase for %d times", not_f1_inc_cnt)
                                 fa.write("[%d] Early stop as not_f1_inc_cnt=%d\n" % (cur_epoch, not_f1_inc_cnt))
                                 is_early_stop = True
