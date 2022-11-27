@@ -8,20 +8,20 @@ import numpy as np
 import random
 import scipy.sparse as sp
 
-# from transformers.models.roberta.modeling_roberta import RobertaForSequenceClassification
-# from transformers.models.bert.modeling_bert import BertForSequenceClassification
+# # from transformers.models.roberta.modeling_roberta import RobertaForSequenceClassification
+# # from transformers.models.bert.modeling_bert import BertForSequenceClassification
 # from transformers.models.t5.modeling_t5 import T5ForConditionalGeneration
-# from transformers.models.bart.modeling_bart import BartForConditionalGeneration
-# from transformers import AutoTokenizer, AutoModelForSequenceClassification
+# # from transformers.models.bart.modeling_bart import BartForConditionalGeneration
+# # from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
 
-# model4 = AutoModelForSequenceClassification.from_pretrained("bert-base-uncased")
+# # model4 = AutoModelForSequenceClassification.from_pretrained("bert-base-uncased")
 # model3 = T5ForConditionalGeneration.from_pretrained('t5-base')
-# model = RobertaForSequenceClassification.from_pretrained('roberta-base')
-# model2 = BertForSequenceClassification.from_pretrained('bert-base-uncased')
-# model.roberta.embeddings.word_embeddings.weight.shape
-# model2.bert.embeddings.word_embeddings.weight.shape
-# model4.parameters
+# # model = RobertaForSequenceClassification.from_pretrained('roberta-base')
+# # model2 = BertForSequenceClassification.from_pretrained('bert-base-uncased')
+# # model.roberta.embeddings.word_embeddings.weight.shape
+# # model2.bert.embeddings.word_embeddings.weight.shape
+# # model4.parameters
 
 
 
@@ -130,7 +130,7 @@ class GATLayer(nn.Module):
         # adj>0的位置使用e对应位置的值替换，其余都为-9e15，
         # 这样设定经过Softmax后每个节点对应的行非邻居都会变为0。
         attention = F.softmax(attention, dim=1) # 每行做Softmax，相当于每个节点做softmax
-        attention = F.dropout(attention, self.dropout, training=self.training)
+        attention = F.dropout(attention, self.dropout, training=self.training) #几乎dropout了大多的点
         # print("attention.shape,attention[:5,:5]:",attention.shape,attention[:5,:5])
         h_prime = torch.matmul(attention, Wh) # 得到下一层的输入
         
@@ -188,7 +188,7 @@ class PrefixEncoder(torch.nn.Module):
         if self.prefix_projection:
             # Use a two-layer MLP to encode the prefix
             self.embedding = torch.nn.Embedding(config.vocab_size, config.hidden_size)#50264,768
-            self.embedding.weight= weight
+            # self.embedding.weight= weight
             self.gat_layer=GATLayer(config.hidden_size,config.hidden_size,dropout=0.6,alpha=0.2,concat=False)
             #config.pre_seq_len 新随机初始化 换成bert embedding 希望和此表有关
             #传进来是词表大小 token_id对应词表向量
@@ -206,11 +206,11 @@ class PrefixEncoder(torch.nn.Module):
         #prefix传进来可能是[17053,18,3516,4492]拿embedding
         #用GNN 改成传邻接矩阵
         if self.prefix_projection:
-            prefix_tokens = self.embedding(prefix) #就是GNN的x 生成的codeprompt [pre_seq_len, num_hidden_layers]
+            prefix_tokens = self.embedding(prefix) ##就是GNN的x 生成的codeprompt [batch_size,pre_seq_len, num_hidden_layers]
             #但我们还要加edge_index 只保留存在边的缩影   #初始化定死但边可以动！（启发式边可以动）
             #code embedding只是初始化 可以调 但索引不希望定死 就是不知道能不能带权重 就是attention
-            prefix_tokens=self.gat_layer(prefix_tokens,matrix)
+            prefix_tokens=self.gat_layer(prefix_tokens,matrix)#[batch_size,pre_seq_len, num_hidden_layers=768]
             past_key_values = self.trans(prefix_tokens)
         else:
             past_key_values = self.embedding(prefix)
-        return past_key_values
+        return past_key_values#shape:[batch_size,pre_seq_len, num_hidden_layers768 * 2 * hidden_size 12]

@@ -87,6 +87,12 @@ def add_args(parser):
     #                 help="whether to use upgraded ast")
     parser.add_argument('--few_shot',  default=-1, type=int,
                     help="use k shot, -1 for full data")
+    parser.add_argument("--prefix_tuning", default=0, type=int,
+                    help="parameter-efficient GNN prefix tuning, 0 for not tuning, 1 for tuning")
+    parser.add_argument("--prefix_dir", default='data_prefix', type=str,
+                        help="directory to score prefix_code.txt")
+    parser.add_argument("--prefix_token_level", default='subtoken', type=str,
+                        help="how to parse initial prefix code, choose 'token' or 'subtoken' level of ids/init_dist_weight")
     args = parser.parse_args()
     return args
 
@@ -128,17 +134,17 @@ def set_hyperparas(args):
     args.weight_decay = 0.0
     if args.task == 'summarize':
         args.data_num = args.few_shot if args.few_shot > 0 else -1
-        args.lr = 2e-5
+        args.lr = 2e-5 if not args.prefix_tuning else 2e-3
         args.max_source_length = 256
         args.max_target_length = 128
     elif args.task == 'translate':
         args.data_num = args.few_shot if args.few_shot > 0 else -1
-        args.lr = 2e-5
+        args.lr = 2e-5 if not args.prefix_tuning else 2e-3
         args.max_source_length = 320
         args.max_target_length = 256
     elif args.task == 'refine':
         args.data_num = args.few_shot if args.few_shot > 0 else -1
-        args.lr = 2e-5
+        args.lr = 2e-5 if not args.prefix_tuning else 2e-3
         if args.sub_task == 'small':
             args.max_source_length = 130
             args.max_target_length = 120
@@ -147,24 +153,24 @@ def set_hyperparas(args):
             args.max_target_length = 240
     elif args.task == 'generate':
         args.data_num = args.few_shot if args.few_shot > 0 else -1
-        args.lr = 2e-5
+        args.lr = 2e-5 if not args.prefix_tuning else 2e-3
         args.max_source_length = 320
         args.max_target_length = 150
     elif args.task == 'complete':
         args.data_num = args.few_shot if args.few_shot > 0 else -1
-        args.lr = 1e-5
+        args.lr = 1e-5 if not args.prefix_tuning else 1e-3
         args.max_source_length = 256
         args.max_target_length = 256
     elif args.task == 'defect':
         args.data_num = args.few_shot * 2 if args.few_shot > 0 else -1
-        args.lr = 8e-6
+        args.lr = 8e-6 if not args.prefix_tuning else 8e-4
         args.max_source_length = 512
         args.max_target_length = 3  # as do not need to add lang ids
     elif args.task == 'clone':
         args.data_num = args.few_shot * 2 if args.few_shot > 0 else -1 
-        args.lr = 2e-5
-        args.max_source_length = 512#400
-        args.max_target_length = 512#400
+        args.lr = 2e-5 if not args.prefix_tuning else 5e-4
+        args.max_source_length = 512#512#400
+        args.max_target_length = 512#512#400
 
     if args.few_shot == -1:
         if args.task in ['clone']:
@@ -190,7 +196,10 @@ def set_hyperparas(args):
             if args.task=='refine' or args.task=='generate':
                 args.batch_size *= 2
         if args.task in ['clone']:
-            args.batch_size = 6#args.batch_size // 2
+            if args.prefix_tuning:
+                args.batch_size = args.batch_size // 2 #4
+            else:
+                args.batch_size = args.batch_size // 2
         # args.batch_size = 128 if args.model_name not in ['t5', 'codet5'] else 16
         args.warmup_steps = 1000
         args.dev_batch_size = args.batch_size * 1 if not torch.cuda.is_available() else args.batch_size//torch.cuda.device_count()*1

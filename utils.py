@@ -540,6 +540,37 @@ def load_and_cache_multi_gen_data(args, split_tag, pool, tokenizer, encode_targe
             logger.info("Save data into %s", cache_fn)
     return examples_data_dict
 
+
+def load_prefix_code(args, tokenizer):
+    filename = get_filenames(
+                args.data_dir, args.task, args.sub_task, 'prefix')
+    if args.task == 'clone':
+        # examples = read_examples(filename, args.data_num, args.task)
+        # index_filename = filename
+        # url_to_code = {}
+        with open(filename, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                js = json.loads(line)
+                js['func']=js['func'].replace('</s>', '<unk>')
+                if args.prefix_token_level == 'subtoken':
+                    subtokens_ids=tokenizer.encode(js['func'], max_length=args.max_source_length, padding='max_length', truncation=True)
+                    weight_matrix=None
+                    return subtokens_ids#,weight_matrix
+                elif args.prefix_token_level == 'token':
+                    return None,None
+                # tokens_list = js['func'].split()
+
+        # token_ids = tokenizer.convert_tokens_to_ids(tokens_list) 
+        # if len(token_ids)<=args.max_source_length:
+        #     padding_length = args.max_source_length - len(token_ids)
+        #     token_ids += [tokenizer.pad_token_id]*padding_length
+        # else:
+        #     token_ids = token_ids[:args.max_source_length]
+        # return token_ids
+        
+    else:
+        return None
 class TextDataset_POJ104(Dataset):
     def __init__(self, tokenizer, args, file_path=None):
         # super(TensorDataset, self).__init__(tokenizer, args, file_path)
@@ -713,11 +744,13 @@ def get_filenames(data_root, task, sub_task, split=''):
         train_fn = '{}/train.json'.format(data_dir)
         dev_fn = '{}/dev.json'.format(data_dir)
         test_fn = '{}/test.json'.format(data_dir)
+        prefix_fn = '{}/prefix_code.json'.format(data_dir)
     elif task == 'summarize':
         data_dir = '{}/{}/{}'.format(data_root, task, sub_task)
         train_fn = '{}/train.jsonl'.format(data_dir)
         dev_fn = '{}/valid.jsonl'.format(data_dir)
         test_fn = '{}/test.jsonl'.format(data_dir)
+        prefix_fn = '{}/prefix_code.jsonl'.format(data_dir)
     elif task == 'refine':
         data_dir = '{}/{}/{}'.format(data_root, task, sub_task)
         train_fn = '{}/train.buggy-fixed.buggy,{}/train.buggy-fixed.fixed'.format(
@@ -726,6 +759,7 @@ def get_filenames(data_root, task, sub_task, split=''):
             data_dir, data_dir)
         test_fn = '{}/test.buggy-fixed.buggy,{}/test.buggy-fixed.fixed'.format(
             data_dir, data_dir)
+        prefix_fn = '{}/prefix_code.txt'.format(data_dir)
     elif task == 'translate':
         data_dir = '{}/{}'.format(data_root, task)
         if sub_task == 'cs-java':
@@ -735,6 +769,7 @@ def get_filenames(data_root, task, sub_task, split=''):
                 data_dir, data_dir)
             test_fn = '{}/test.java-cs.txt.cs,{}/test.java-cs.txt.java'.format(
                 data_dir, data_dir)
+            prefix_fn = '{}/prefix_code.java'.format(data_dir)
         else:
             train_fn = '{}/train.java-cs.txt.java,{}/train.java-cs.txt.cs'.format(
                 data_dir, data_dir)
@@ -742,22 +777,27 @@ def get_filenames(data_root, task, sub_task, split=''):
                 data_dir, data_dir)
             test_fn = '{}/test.java-cs.txt.java,{}/test.java-cs.txt.cs'.format(
                 data_dir, data_dir)
+            prefix_fn = '{}/prefix_code.cs'.format(data_dir)
     elif task == 'clone':
         data_dir = '{}/{}'.format(data_root, task)
         train_fn = '{}/train.txt'.format(data_dir)
         dev_fn = '{}/valid.txt'.format(data_dir)
         test_fn = '{}/test.txt'.format(data_dir)
+        prefix_fn = '{}/prefix_code.txt'.format(data_dir)
     elif task == 'defect':
         data_dir = '{}/{}'.format(data_root, task)
         train_fn = '{}/train.jsonl'.format(data_dir)
         dev_fn = '{}/valid.jsonl'.format(data_dir)
         test_fn = '{}/test.jsonl'.format(data_dir)
+        prefix_fn = '{}/prefix_code.jsonl'.format(data_dir)
     if split == 'train':
         return train_fn
     elif split == 'dev':
         return dev_fn
     elif split == 'test':
         return test_fn
+    elif split == 'prefix':
+        return prefix_fn
     else:
         return train_fn, dev_fn, test_fn
 
