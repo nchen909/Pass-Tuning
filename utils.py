@@ -543,7 +543,7 @@ def load_and_cache_multi_gen_data(args, split_tag, pool, tokenizer, encode_targe
 
 def load_prefix_code(args, tokenizer):
     filename = get_filenames(
-                args.data_dir, args.task, args.sub_task, 'prefix')
+                args.prefix_dir, args.task, args.sub_task, 'prefix')
     if args.task == 'clone':
         # examples = read_examples(filename, args.data_num, args.task)
         # index_filename = filename
