@@ -91,8 +91,12 @@ def add_args(parser):
                     help="parameter-efficient GNN prefix tuning, 0 for not tuning, 1 for tuning")
     parser.add_argument("--prefix_dir", default='data_prefix', type=str,
                         help="directory to score prefix_code.txt")
-    parser.add_argument("--prefix_token_level", default='subtoken', type=str,
+    parser.add_argument("--prefix_token_level", default='token', type=str,
                         help="how to parse initial prefix code, choose 'token' or 'subtoken' level of ids/init_dist_weight")
+    parser.add_argument("--gnn_token_num", default=32, type=int,
+                        help="number of tokens to use for gnn, must be divided with max_source_length in encoder2decoder with no remainder")
+    parser.add_argument("--fix_model_param", default=1, type=int,
+                    help="when prefix_tuning, fix model param or not ")
     args = parser.parse_args()
     return args
 
@@ -168,7 +172,7 @@ def set_hyperparas(args):
         args.max_target_length = 3  # as do not need to add lang ids
     elif args.task == 'clone':
         args.data_num = args.few_shot * 2 if args.few_shot > 0 else -1 
-        args.lr = 2e-5 if not args.prefix_tuning else 5e-4
+        args.lr = 2e-5 if not args.prefix_tuning else 5e-5
         args.max_source_length = 512#512#400
         args.max_target_length = 512#512#400
 

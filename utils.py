@@ -15,6 +15,8 @@ from io import StringIO
 import tokenize
 from functools import partial
 from torch.utils.data import DataLoader, Dataset, SequentialSampler, RandomSampler,TensorDataset
+from prefixcode import PrefixCode
+import multiprocessing
 logger = logging.getLogger(__name__)
 
 def get_lang_by_task(task, sub_task):
@@ -167,9 +169,9 @@ class CloneInputFeatures(object):
     def __init__(self,
                  example_id,
                  source_ids,
-                 label,
-                 url1,
-                 url2
+                 label=None,
+                 url1=None,
+                 url2=None
                  ):
         self.example_id = example_id
         self.source_ids = source_ids
@@ -183,7 +185,7 @@ class DefectInputFeatures(object):
     def __init__(self,
                  example_id,
                  source_ids,
-                 label
+                 label=None
                  ):
         self.example_id = example_id
         self.source_ids = source_ids
@@ -195,7 +197,7 @@ class InputFeatures(object):
     def __init__(self,
                  example_id,
                  source_ids,
-                 target_ids,
+                 target_ids=None,
                  url=None
                  ):
         self.example_id = example_id
@@ -208,9 +210,9 @@ class Example(object):
     """A single training/test example."""
 
     def __init__(self,
-                 idx,
+                 idx,#
                  source,
-                 target,
+                 target='',#
                  url=None,
                  task='',
                  sub_task='',
@@ -232,10 +234,10 @@ class CloneExample(object):
 
     def __init__(self,
                  code1,
-                 code2,
-                 label,
-                 url1,
-                 url2
+                 code2=None,
+                 label=None,
+                 url1=None,
+                 url2=None
                  ):
         self.source = code1
         self.target = code2
@@ -392,7 +394,7 @@ def read_clone_examples(filename, data_num):
     return data
 
 
-def load_and_cache_gen_data(args, filename, pool, tokenizer, split_tag, only_src=False, is_sample=False, is_attention=False):
+def load_and_cache_gen_data(args, filename, pool, tokenizer, split_tag, only_src=False, is_sample=False):
     # cache the data into args.cache_path except it is sampled
     # only_src: control whether to return only source ids for bleu evaluating (dev/test)
     # return: examples (Example object), data (TensorDataset)
@@ -459,108 +461,151 @@ def load_and_cache_gen_data(args, filename, pool, tokenizer, split_tag, only_src
     return examples, data
 
 
-def load_and_cache_multi_gen_data(args, split_tag, pool, tokenizer, encode_target=True, is_sample=False):
-    cache_fn = os.path.join(args.cache_path, split_tag)
-    if os.path.exists(cache_fn) and not is_sample:
-        logger.info("Load cache data from %s", cache_fn)
-        examples_data_dict = torch.load(cache_fn)
-    else:
-        examples_data_dict = {}
+# def load_and_cache_multi_gen_data(args, split_tag, pool, tokenizer, encode_target=True, is_sample=False):
+#     cache_fn = os.path.join(args.cache_path, split_tag)
+#     if os.path.exists(cache_fn) and not is_sample:
+#         logger.info("Load cache data from %s", cache_fn)
+#         examples_data_dict = torch.load(cache_fn)
+#     else:
+#         examples_data_dict = {}
 
-        task_list = ['summarize', 'translate', 'refine', 'generate', 'defect', 'clone']
-        for task in task_list:
-            if task == 'summarize':
-                sub_tasks = ['ruby', 'javascript',
-                             'go', 'python', 'java', 'php']
-            elif task == 'translate':
-                sub_tasks = ['java-cs', 'cs-java']
-            elif task == 'refine':
-                sub_tasks = ['small', 'medium']
-            else:
-                sub_tasks = []
-            args.task = task
-            for sub_task in sub_tasks:
-                args.sub_task = sub_task
-                if task == 'summarize':
-                    args.max_source_length = 256
-                    args.max_target_length = 128
-                elif task == 'translate':
-                    args.max_source_length = 320
-                    args.max_target_length = 256
-                elif task == 'refine':
-                    if sub_task == 'small':
-                        args.max_source_length = 130
-                        args.max_target_length = 120
-                    else:
-                        args.max_source_length = 240
-                        args.max_target_length = 240
-                elif task == 'generate':
-                    args.max_source_length = 320
-                    args.max_target_length = 150
-                elif task == 'defect':
-                    args.max_source_length = 512
-                    args.max_target_length = 3  # as do not need to add lang ids
-                elif task == 'clone':
-                    args.max_source_length = 256
-                    args.max_target_length = 256
+#         task_list = ['summarize', 'translate', 'refine', 'generate', 'defect', 'clone']
+#         for task in task_list:
+#             if task == 'summarize':
+#                 sub_tasks = ['ruby', 'javascript',
+#                              'go', 'python', 'java', 'php']
+#             elif task == 'translate':
+#                 sub_tasks = ['java-cs', 'cs-java']
+#             elif task == 'refine':
+#                 sub_tasks = ['small', 'medium']
+#             else:
+#                 sub_tasks = []
+#             args.task = task
+#             for sub_task in sub_tasks:
+#                 args.sub_task = sub_task
+#                 if task == 'summarize':
+#                     args.max_source_length = 256
+#                     args.max_target_length = 128
+#                 elif task == 'translate':
+#                     args.max_source_length = 320
+#                     args.max_target_length = 256
+#                 elif task == 'refine':
+#                     if sub_task == 'small':
+#                         args.max_source_length = 130
+#                         args.max_target_length = 120
+#                     else:
+#                         args.max_source_length = 240
+#                         args.max_target_length = 240
+#                 elif task == 'generate':
+#                     args.max_source_length = 320
+#                     args.max_target_length = 150
+#                 elif task == 'defect':
+#                     args.max_source_length = 512
+#                     args.max_target_length = 3  # as do not need to add lang ids
+#                 elif task == 'clone':
+#                     args.max_source_length = 256
+#                     args.max_target_length = 256
 
-                filename = get_filenames(
-                    args.data_dir, args.task, args.sub_task, split_tag)
-                examples = read_examples(filename, args.data_num, args.task)
-                if is_sample:
-                    examples = random.sample(
-                        examples, min(5000, len(examples)))
-                if split_tag == 'train':
-                    calc_stats(examples, tokenizer, is_tokenize=True)
-                else:
-                    calc_stats(examples)
+#                 filename = get_filenames(
+#                     args.data_dir, args.task, args.sub_task, split_tag)
+#                 examples = read_examples(filename, args.data_num, args.task)
+#                 if is_sample:
+#                     examples = random.sample(
+#                         examples, min(5000, len(examples)))
+#                 if split_tag == 'train':
+#                     calc_stats(examples, tokenizer, is_tokenize=True)
+#                 else:
+#                     calc_stats(examples)
 
-                tuple_examples = [(example, idx, tokenizer, args, split_tag)
-                                  for idx, example in enumerate(examples)]
-                f_=partial(convert_examples_to_features,args)
-                if args.data_num == -1:
-                    features = pool.map(f_, tqdm(
-                        tuple_examples, total=len(tuple_examples)))
-                else:
-                    features = [f_(
-                        x) for x in tuple_examples]
-                all_source_ids = torch.tensor(
-                    [f.source_ids for f in features], dtype=torch.long)
-                if encode_target:
-                    all_target_ids = torch.tensor(
-                        [f.target_ids for f in features], dtype=torch.long)
-                    data = TensorDataset(all_source_ids, all_target_ids)
-                else:
-                    data = TensorDataset(all_source_ids)
-                examples_data_dict['{}_{}'.format(
-                    task, sub_task) if sub_task != 'none' else task] = (examples, data)
+#                 tuple_examples = [(example, idx, tokenizer, args, split_tag)
+#                                   for idx, example in enumerate(examples)]
+#                 f_=partial(convert_examples_to_features,args)
+#                 if args.data_num == -1:
+#                     features = pool.map(f_, tqdm(
+#                         tuple_examples, total=len(tuple_examples)))
+#                 else:
+#                     features = [f_(
+#                         x) for x in tuple_examples]
+#                 all_source_ids = torch.tensor(
+#                     [f.source_ids for f in features], dtype=torch.long)
+#                 if encode_target:
+#                     all_target_ids = torch.tensor(
+#                         [f.target_ids for f in features], dtype=torch.long)
+#                     data = TensorDataset(all_source_ids, all_target_ids)
+#                 else:
+#                     data = TensorDataset(all_source_ids)
+#                 examples_data_dict['{}_{}'.format(
+#                     task, sub_task) if sub_task != 'none' else task] = (examples, data)
 
-        if args.local_rank in [-1, 0] and not is_sample:
-            torch.save(examples_data_dict, cache_fn)
-            logger.info("Save data into %s", cache_fn)
-    return examples_data_dict
+#         if args.local_rank in [-1, 0] and not is_sample:
+#             torch.save(examples_data_dict, cache_fn)
+#             logger.info("Save data into %s", cache_fn)
+#     return examples_data_dict
 
 
 def load_prefix_code(args, tokenizer):
     filename = get_filenames(
                 args.prefix_dir, args.task, args.sub_task, 'prefix')
+    # examples, data = load_and_cache_clone_data(args, filename, pool, tokenizer, 'train') 
     if args.task == 'clone':
         # examples = read_examples(filename, args.data_num, args.task)
         # index_filename = filename
         # url_to_code = {}
         with open(filename, encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                js = json.loads(line)
-                js['func']=js['func'].replace('</s>', '<unk>')
-                if args.prefix_token_level == 'subtoken':
-                    subtokens_ids=tokenizer.encode(js['func'], max_length=args.max_source_length, padding='max_length', truncation=True)
-                    weight_matrix=None
-                    return subtokens_ids#,weight_matrix
-                elif args.prefix_token_level == 'token':
-                    return None,None
-                # tokens_list = js['func'].split()
+            line = f.readline().strip()
+            js = json.loads(line)
+            js['func']=js['func'].replace('</s>', '<unk>')
+            examples=' '.join(js['func'].split())
+            examples=[CloneExample(examples)]
+            feature= CloneInputFeatures(example_id=1,source_ids=tokenizer.encode(examples[0].source, max_length=args.max_source_length, padding='max_length', truncation=True))
+            data= torch.tensor([feature.source_ids], dtype=torch.long)
+            prefix_code=PrefixCode(args, examples, data, 'java')
+    elif args.task == 'defect':
+        with open(filename, encoding="utf-8") as f:
+            line = f.readline().strip()
+            js = json.loads(line)
+            js['func']=js['func'].replace('</s>', '<unk>')
+            examples=' '.join(js['func'].split())
+            examples=[Example(1,examples)]
+            feature= DefectInputFeatures(example_id=1,source_ids=tokenizer.encode(examples[0].source, max_length=args.max_source_length, padding='max_length', truncation=True))
+            data= torch.tensor([feature.source_ids], dtype=torch.long)
+            prefix_code=PrefixCode(args, examples, data, 'c')
+            # if args.prefix_token_level == 'token':
+            #     tokens_ids=tokenizer.encode(js['func'], max_length=args.gnn_token_num, padding='max_length', truncation=True)
+            #     print(tokens_list)
+            #     weight_matrix=distance_list[0]
+            #     return tokens_ids#,weight_matrix
+            # elif args.prefix_token_level == 'subtoken':
+            #     return None,None
+            # tokens_list = js['func'].split()
+    elif args.task == 'generate':
+        with open(filename, encoding="utf-8") as f:
+            line = f.readline().strip()
+            js = json.loads(line)
+            js['code']=js['code'].replace('</s>', '<unk>')
+            examples=' '.join(js['code'].split())
+            examples=[Example(1,examples)]
+    #         InputFeatures(
+    #     example_index,
+    #     source_ids,
+    #     target_ids,
+    #     url=example.url
+    # )
+            feature= InputFeatures(example_id=1,source_ids=tokenizer.encode(examples[0].source, max_length=args.max_source_length, padding='max_length', truncation=True))
+            data= torch.tensor([feature.source_ids], dtype=torch.long)
+            prefix_code=PrefixCode(args, examples, data, 'java')
 
+    ast_list, sast_list, tokens_list, tokens_type_list, leaves =prefix_code.get_ast_and_token(prefix_code.examples, prefix_code.parser, prefix_code.lang)
+    tokens_ids=tokenizer.convert_tokens_to_ids(tokens_list[0].values())
+    distance_list=prefix_code.get_token_distance(args, leaves, ast_list, sast_list, 'shortest_path_length')[0]
+    assert len(tokens_ids)==distance_list.shape[0]
+    if len(tokens_ids)>=args.gnn_token_num:
+        return tokens_ids[:args.gnn_token_num], distance_list[:args.gnn_token_num,:args.gnn_token_num]
+    else:
+        distance_list=np.pad(distance_list,((0,args.gnn_token_num-len(tokens_ids)),(0,args.gnn_token_num-len(tokens_ids))),'constant')
+        tokens_ids=tokens_ids+[tokenizer.pad_token_id]*(args.gnn_token_num-len(tokens_ids))
+        assert len(tokens_ids)==distance_list.shape[0]
+        return tokens_ids, distance_list
         # token_ids = tokenizer.convert_tokens_to_ids(tokens_list) 
         # if len(token_ids)<=args.max_source_length:
         #     padding_length = args.max_source_length - len(token_ids)
@@ -569,8 +614,13 @@ def load_prefix_code(args, tokenizer):
         #     token_ids = token_ids[:args.max_source_length]
         # return token_ids
         
-    else:
-        return None
+
+
+
+def get_distance(args,tokenizer):
+    pool=multiprocessing.Pool(args.cpu_count)
+    examples, data = load_and_cache_clone_data(args, args.train_filename, pool, tokenizer, 'train') 
+
 class TextDataset_POJ104(Dataset):
     def __init__(self, tokenizer, args, file_path=None):
         # super(TensorDataset, self).__init__(tokenizer, args, file_path)
@@ -744,13 +794,13 @@ def get_filenames(data_root, task, sub_task, split=''):
         train_fn = '{}/train.json'.format(data_dir)
         dev_fn = '{}/dev.json'.format(data_dir)
         test_fn = '{}/test.json'.format(data_dir)
-        prefix_fn = '{}/prefix_code.json'.format(data_dir)
+        prefix_fn = '{}/prefix.json'.format(data_dir)
     elif task == 'summarize':
         data_dir = '{}/{}/{}'.format(data_root, task, sub_task)
         train_fn = '{}/train.jsonl'.format(data_dir)
         dev_fn = '{}/valid.jsonl'.format(data_dir)
         test_fn = '{}/test.jsonl'.format(data_dir)
-        prefix_fn = '{}/prefix_code.jsonl'.format(data_dir)
+        prefix_fn = '{}/prefix.jsonl'.format(data_dir)
     elif task == 'refine':
         data_dir = '{}/{}/{}'.format(data_root, task, sub_task)
         train_fn = '{}/train.buggy-fixed.buggy,{}/train.buggy-fixed.fixed'.format(
@@ -759,7 +809,8 @@ def get_filenames(data_root, task, sub_task, split=''):
             data_dir, data_dir)
         test_fn = '{}/test.buggy-fixed.buggy,{}/test.buggy-fixed.fixed'.format(
             data_dir, data_dir)
-        prefix_fn = '{}/prefix_code.txt'.format(data_dir)
+        prefix_fn = '{}/prefix.java'.format(
+                data_dir)
     elif task == 'translate':
         data_dir = '{}/{}'.format(data_root, task)
         if sub_task == 'cs-java':
@@ -769,7 +820,8 @@ def get_filenames(data_root, task, sub_task, split=''):
                 data_dir, data_dir)
             test_fn = '{}/test.java-cs.txt.cs,{}/test.java-cs.txt.java'.format(
                 data_dir, data_dir)
-            prefix_fn = '{}/prefix_code.java'.format(data_dir)
+            prefix_fn = '{}/prefix.txt.java'.format(
+                data_dir)
         else:
             train_fn = '{}/train.java-cs.txt.java,{}/train.java-cs.txt.cs'.format(
                 data_dir, data_dir)
@@ -777,19 +829,20 @@ def get_filenames(data_root, task, sub_task, split=''):
                 data_dir, data_dir)
             test_fn = '{}/test.java-cs.txt.java,{}/test.java-cs.txt.cs'.format(
                 data_dir, data_dir)
-            prefix_fn = '{}/prefix_code.cs'.format(data_dir)
+            prefix_fn = '{}/prefix.txt.cs'.format(
+                data_dir)
     elif task == 'clone':
         data_dir = '{}/{}'.format(data_root, task)
         train_fn = '{}/train.txt'.format(data_dir)
         dev_fn = '{}/valid.txt'.format(data_dir)
         test_fn = '{}/test.txt'.format(data_dir)
-        prefix_fn = '{}/prefix_code.txt'.format(data_dir)
+        prefix_fn = '{}/prefix.txt'.format(data_dir)
     elif task == 'defect':
         data_dir = '{}/{}'.format(data_root, task)
         train_fn = '{}/train.jsonl'.format(data_dir)
         dev_fn = '{}/valid.jsonl'.format(data_dir)
         test_fn = '{}/test.jsonl'.format(data_dir)
-        prefix_fn = '{}/prefix_code.jsonl'.format(data_dir)
+        prefix_fn = '{}/prefix.jsonl'.format(data_dir)
     if split == 'train':
         return train_fn
     elif split == 'dev':
@@ -914,103 +967,49 @@ def remove_comments_and_docstrings(source, lang):
         return '\n'.join(temp)
 
 
-# depth-first traverse
-def traverse(cursor, G, came_up, node_tag, node_sum, parent_dict):
-    '''
-        cursor: the pointer of tree-sitter. An AST cursor is an object that is used to traverse an AST one node at a time
-        G: the graph stored in the format of networkx
-        came_up: used to denote whether the node is the first glance
-        node_tag: the tag of this node
-        node_sum: the number of distinct nodes
-        parent_dict: used to store the parent nodes of all traversed nodes
-    '''
-    if not came_up:
-        G.add_node(node_sum, features=cursor.node, label=node_tag)
-        if node_tag in parent_dict.keys():
-            G.add_edge(parent_dict[node_tag], node_tag)
-        if cursor.goto_first_child():
-            node_sum += 1
-            parent_dict[node_sum] = node_tag
-            traverse(cursor, G, came_up=False, node_tag=node_sum,
-                     node_sum=node_sum, parent_dict=parent_dict)
-        elif cursor.goto_next_sibling():
-            node_sum += 1
-            parent_dict[node_sum] = parent_dict[node_tag]
-            traverse(cursor, G, came_up=False, node_tag=node_sum,
-                     node_sum=node_sum, parent_dict=parent_dict)
-        elif cursor.goto_parent():
-            node_tag = parent_dict[node_tag]
-            traverse(cursor, G, came_up=True, node_tag=node_tag,
-                     node_sum=node_sum, parent_dict=parent_dict)
-    else:
-        if cursor.goto_next_sibling():
-            node_sum += 1
-            parent_dict[node_sum] = parent_dict[node_tag]
-            traverse(cursor, G, came_up=False, node_tag=node_sum,
-                     node_sum=node_sum, parent_dict=parent_dict)
-        elif cursor.goto_parent():
-            node_tag = parent_dict[node_tag]
-            traverse(cursor, G, came_up=True, node_tag=node_tag,
-                     node_sum=node_sum,  parent_dict=parent_dict)
+# def format_attention(attention, layers=None, heads=None):
+#     """[format attention whose batch size > 1]
+
+#     Args:
+#         attention ([type]): [description]
+#         layers ([type], optional): [description]. Defaults to None.
+#         heads ([type], optional): [description]. Defaults to None.
+
+#     Raises:
+#         ValueError: [description]
+
+#     Returns:
+#         [type]: [description]
+#     """
+
+#     if type(layers) == int:
+#         layers = [layers]
+#     if layers:
+#         attention = [attention[layer_index] for layer_index in layers]
+#     squeezed = []
+#     for layer_attention in attention:
+#         # batch_size x num_heads x seq_len x seq_len
+#         # print('layer_attention', layer_attention.shape)
+#         if len(layer_attention.shape) != 4:
+#             raise ValueError("The attention tensor does not have the correct number of dimensions. Make sure you set "
+#                              "output_attentions=True when initializing your model.")
+#         # num_heads x batch_size x seq_len x seq_len
+#         layer_attention = layer_attention.permute((1, 0, 2, 3))
+
+#         if heads:
+#             layer_attention = layer_attention[heads]
+#         squeezed.append(layer_attention)
+#     # num_layers x num_heads x batch_size x seq_len x seq_len
+#     return torch.stack(squeezed).permute((2, 0, 1, 3, 4))
+#     # batch_size x num_layers x num_heads x seq_len x seq_len
 
 
-def get_ast_nx(example, parser, lang):
-    new_code = example.raw_code#remove_comments_and_docstrings(example.raw_code, lang)
-    tree = parser.parse(bytes(new_code, 'utf-8'))
-    G = nx.Graph()
-    cursor = tree.walk()
-    traverse(cursor, G, came_up=False, node_tag=0, node_sum=0, parent_dict={})
-    return Example(
-        idx=example.idx,
-        source=new_code,
-        target=example.target,#code comment like: disconnect all sources and cancel all throttled functions
-        ast=G
-    )
+# def num_layers(attention):
+#     return len(attention)
 
 
-def format_attention(attention, layers=None, heads=None):
-    """[format attention whose batch size > 1]
-
-    Args:
-        attention ([type]): [description]
-        layers ([type], optional): [description]. Defaults to None.
-        heads ([type], optional): [description]. Defaults to None.
-
-    Raises:
-        ValueError: [description]
-
-    Returns:
-        [type]: [description]
-    """
-
-    if type(layers) == int:
-        layers = [layers]
-    if layers:
-        attention = [attention[layer_index] for layer_index in layers]
-    squeezed = []
-    for layer_attention in attention:
-        # batch_size x num_heads x seq_len x seq_len
-        # print('layer_attention', layer_attention.shape)
-        if len(layer_attention.shape) != 4:
-            raise ValueError("The attention tensor does not have the correct number of dimensions. Make sure you set "
-                             "output_attentions=True when initializing your model.")
-        # num_heads x batch_size x seq_len x seq_len
-        layer_attention = layer_attention.permute((1, 0, 2, 3))
-
-        if heads:
-            layer_attention = layer_attention[heads]
-        squeezed.append(layer_attention)
-    # num_layers x num_heads x batch_size x seq_len x seq_len
-    return torch.stack(squeezed).permute((2, 0, 1, 3, 4))
-    # batch_size x num_layers x num_heads x seq_len x seq_len
-
-
-def num_layers(attention):
-    return len(attention)
-
-
-def num_heads(attention):
-    return attention[0][0].size(0)
+# def num_heads(attention):
+#     return attention[0][0].size(0)
 
 
 def format_special_chars(tokens):

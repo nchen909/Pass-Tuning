@@ -9,6 +9,7 @@ import logging
 import sys
 from prefix_encoder import PrefixEncoder
 from utils import load_prefix_code
+
 #import codecs
 #sys.stdout = codecs.getwriter("utf-8")(sys.stdout.detach())
 logger = logging.getLogger(__name__)
@@ -50,7 +51,7 @@ MODEL_CLASSES = {'roberta': (AutoConfig, AutoModel, AutoTokenizer),
 def get_model_size(model):
     model_parameters = filter(lambda p: p.requires_grad, model.parameters())
     model_size = sum([np.prod(p.size()) for p in model_parameters])
-    return "{}M".format(round(model_size / 1e+6))
+    return "{}M".format(round(model_size / 1e+6,3))
 
 #如果addargument了prompt 在encoder的输出前就先加上prompt 用past_key_values 照着deltatuning加
 
@@ -67,7 +68,7 @@ def bulid_or_load_gen_model(args):
         decoder_layer = nn.TransformerDecoderLayer(
             d_model=config.hidden_size, nhead=config.num_attention_heads)
         decoder = nn.TransformerDecoder(decoder_layer, num_layers=6)
-        model = Seq2Seq(encoder=encoder, decoder=decoder,
+        model = Seq2Seq(encoder=encoder, decoder=decoder, tokenizer=tokenizer, args=args,
                         config=config, beam_size=args.beam_size, max_length=args.max_target_length,
                         sos_id=tokenizer.cls_token_id, eos_id=tokenizer.sep_token_id)
     elif args.model_name in ['unixcoder']:
@@ -93,8 +94,12 @@ def bulid_or_load_gen_model(args):
             
     elif args.model_name in ['t5', 'codet5','bart','plbart']:
         model = model_class.from_pretrained(checkpoint, output_attentions=True)
-
-    logger.info("Finish loading model [%s] parameters from %s", get_model_size(model), args.model_name)
+    if args.prefix_tuning:
+        logger.info("Finish loading model [%s] parameters from %s", get_model_size(
+            model.prefix_encoder.gat_layer), args.model_name)
+    else:
+        logger.info("Finish loading model [%s] parameters from %s", get_model_size(
+            model), args.model_name)
 
     return config, model, tokenizer
 
@@ -115,8 +120,12 @@ def bulid_or_load_cls_model(args):
         # model.resize_token_embeddings(32000)
         model = CloneModel(model, config, tokenizer, args)
 
-    logger.info("Finish loading model [%s] parameters from %s", get_model_size(
-        model), args.model_name)
+    if args.prefix_tuning:
+        logger.info("Finish loading model [%s] parameters from %s", get_model_size(
+            model.prefix_encoder.gat_layer), args.model_name)
+    else:
+        logger.info("Finish loading model [%s] parameters from %s", get_model_size(
+            model), args.model_name)
 
     return config, model, tokenizer
 
@@ -165,9 +174,9 @@ class Model4UniXcoder(nn.Module):
 class CloneModel(nn.Module):
     def __init__(self, encoder, config, tokenizer, args):
         super(CloneModel, self).__init__()
-        checkpoint = os.path.join(args.huggingface_locals, MODEL_LOCALS[args.model_name])
-        config = AutoConfig.from_pretrained(checkpoint)
-        tokenizer = AutoTokenizer.from_pretrained(checkpoint)
+        # checkpoint = os.path.join(args.huggingface_locals, MODEL_LOCALS[args.model_name])
+        # config = AutoConfig.from_pretrained(checkpoint)
+        # tokenizer = AutoTokenizer.from_pretrained(checkpoint)
         self.encoder = encoder
         self.config = config
         self.tokenizer = tokenizer
@@ -180,26 +189,33 @@ class CloneModel(nn.Module):
                 embeddings_weight = self.encoder.model.shared.weight
             else:
                 embeddings_weight = self.encoder.embeddings.word_embeddings.weight
-            for param in self.encoder.parameters():
-                param.requires_grad = False   #bert的参数是定死的   这里在code里加进来
+            if self.args.fix_model_param:
+                for param in self.encoder.parameters():
+                    param.requires_grad = False
             # load retrieved prefix code tokens
             # self.code_prefix_tokens = torch.Tensor([10, 11, 12, 13, 14, 15]).long().cuda()
             # self.code_prefix_matrix = torch.ones(6, 6).long().cuda()
 
-            if self.args.model_name in ['t5','codet5','bart','plbart']:
-                # self.code_prefix_tokens = torch.arange(10,self.args.max_target_length+10, dtype=torch.long).cuda()
-                self.code_prefix_tokens = torch.tensor(load_prefix_code(self.args,self.tokenizer), dtype=torch.long).cuda()
-            else:
-                # self.code_prefix_tokens = torch.arange(10,self.args.max_source_length+10, dtype=torch.long).cuda()
-                self.code_prefix_tokens = torch.tensor(load_prefix_code(self.args,self.tokenizer), dtype=torch.long).cuda()
-            #now len:args.max_source_length=max_target_length=code_prefix_tokens for t5&bart
-            self.pre_seq_len = len(self.code_prefix_tokens) # 5
-            self.code_prefix_matrix = torch.ones(self.pre_seq_len, self.pre_seq_len).long().cuda()
+            # if self.args.model_name in ['t5','codet5','bart','plbart']:
+            #     # self.code_prefix_tokens = torch.arange(10,self.args.max_target_length+10, dtype=torch.long).cuda()
+            #     self.code_prefix_tokens = torch.tensor(load_prefix_code(self.args,self.tokenizer), dtype=torch.long).cuda()
+            # else:
+            #     # self.code_prefix_tokens = torch.arange(10,self.args.max_source_length+10, dtype=torch.long).cuda()
+            #     self.code_prefix_tokens = torch.tensor(load_prefix_code(self.args,self.tokenizer), dtype=torch.long).cuda()
+            # #now len:args.max_source_length=max_target_length=code_prefix_tokens for t5&bart
+            # self.pre_seq_len = self.args.max_source_length # 5
+            # self.code_prefix_matrix = torch.ones(len(self.code_prefix_tokens), len(self.code_prefix_tokens)).long().cuda()
+
+            self.code_prefix_tokens, self.code_prefix_matrix = load_prefix_code(self.args,self.tokenizer)
+            self.code_prefix_tokens = torch.tensor(self.code_prefix_tokens, dtype=torch.long).cuda()
+            self.code_prefix_matrix = torch.tensor(self.code_prefix_matrix, dtype=torch.long).cuda()
+            self.pre_seq_len = self.args.max_source_length
+
             self.n_layer = config.num_hidden_layers
             self.n_head = config.num_attention_heads
             self.n_embd = config.hidden_size // config.num_attention_heads
             # add prefix encoder
-            self.prefix_encoder = PrefixEncoder(self.config, embeddings_weight)
+            self.prefix_encoder = PrefixEncoder(self.config, embeddings_weight,self.args)
             if self.args.model_name in ['t5','codet5']:
                 self.dropout = torch.nn.Dropout(config.dropout_rate)
             elif self.args.model_name in ['bart','plbart']:
@@ -311,7 +327,7 @@ class CloneModel(nn.Module):
             attention_mask = torch.cat((prefix_attention_mask, attention_mask), dim=1)
             vec = self.encoder(
                 input_ids=source_ids, 
-                # position_ids=position_ids,
+                position_ids=position_ids,
                 attention_mask=attention_mask, 
                 past_key_values=past_key_values # add
                 )[0][:, 0, :]
@@ -383,12 +399,74 @@ class DefectModel(nn.Module):
         self.tokenizer = tokenizer
         self.classifier = nn.Linear(config.hidden_size, 2)
         self.args = args
+        if self.args.prefix_tuning:
+            if self.args.model_name in ['t5','codet5']:
+                embeddings_weight = self.encoder.shared.weight
+            elif self.args.model_name in ['bart','plbart']:
+                embeddings_weight = self.encoder.model.shared.weight
+            else:
+                embeddings_weight = self.encoder.embeddings.word_embeddings.weight
+            if self.args.fix_model_param:
+                for param in self.encoder.parameters():
+                    param.requires_grad = False
+            self.code_prefix_tokens, self.code_prefix_matrix = load_prefix_code(self.args,self.tokenizer)
+            self.code_prefix_tokens = torch.tensor(self.code_prefix_tokens, dtype=torch.long).cuda()
+            self.code_prefix_matrix = torch.tensor(self.code_prefix_matrix, dtype=torch.long).cuda()
+            self.pre_seq_len = self.args.max_source_length
+
+            self.n_layer = config.num_hidden_layers
+            self.n_head = config.num_attention_heads
+            self.n_embd = config.hidden_size // config.num_attention_heads
+            # add prefix encoder
+            self.prefix_encoder = PrefixEncoder(self.config, embeddings_weight,self.args)
+            if self.args.model_name in ['t5','codet5']:
+                self.dropout = torch.nn.Dropout(config.dropout_rate)
+            elif self.args.model_name in ['bart','plbart']:
+                self.dropout = torch.nn.Dropout(config.dropout)
+            else:
+                self.dropout = torch.nn.Dropout(config.hidden_dropout_prob)
+            
+    def get_prompt(self, batch_size):
+        code_prefix_tokens = self.code_prefix_tokens.unsqueeze(0).expand(batch_size, -1)
+        code_prefix_matrix = self.code_prefix_matrix.unsqueeze(0).expand(batch_size, -1, -1)
+        past_key_values = self.prefix_encoder(code_prefix_tokens, code_prefix_matrix)
+        # bsz, seqlen, _ = past_key_values.shape
+
+        past_key_values = past_key_values.view(
+            batch_size, #1 (8)
+            self.pre_seq_len, #3 (seq_len)512
+            self.n_layer * 2, #0 (2)
+            self.n_head, #2 (12)
+            self.n_embd #4 (64)
+        ).contiguous()#注意这里加了contiguous()!
+
+        past_key_values = self.dropout(past_key_values)
+        if self.args.model_name in ['t5','codet5']:
+            past_key_values = past_key_values.permute([2, 0, 3, 1, 4]).contiguous().split(4)
+        else:
+            past_key_values = past_key_values.permute([2, 0, 3, 1, 4]).contiguous().split(2)
+        return past_key_values
 
     def get_t5_vec(self, source_ids):
         attention_mask = source_ids.ne(self.tokenizer.pad_token_id)
-        
-        outputs = self.encoder(input_ids=source_ids, attention_mask=attention_mask,
-                               labels=source_ids, decoder_attention_mask=attention_mask, output_hidden_states=True)
+        if self.args.prefix_tuning:
+            batch_size = attention_mask.shape[0]
+            past_key_values = self.get_prompt(batch_size=batch_size) # add
+            prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len,dtype=attention_mask.dtype).to(self.encoder.device)
+            prefix_attention_mask = torch.cat((prefix_attention_mask, attention_mask), dim=1)
+            # encoder_source_ids = torch.cat((self.code_prefix_tokens.expand_as(prefix_attention_mask),source_ids),dim=1)
+            outputs = self.encoder(
+                input_ids=source_ids, 
+                attention_mask=attention_mask,
+                labels=source_ids, 
+                decoder_attention_mask=prefix_attention_mask, 
+                output_hidden_states=True,
+                past_key_values=past_key_values#tuple((i.contiguous() for i in past_key_values)) # [2,16,12,6,64]
+                )
+        else:
+            outputs = self.encoder(input_ids=source_ids, attention_mask=attention_mask,
+                                    labels=source_ids, decoder_attention_mask=attention_mask, output_hidden_states=True)
+
         hidden_states = outputs['decoder_hidden_states'][-1]
         eos_mask = source_ids.eq(self.config.eos_token_id)
 
@@ -400,8 +478,23 @@ class DefectModel(nn.Module):
 
     def get_bart_vec(self, source_ids):
         attention_mask = source_ids.ne(self.tokenizer.pad_token_id)
-        outputs = self.encoder(input_ids=source_ids, attention_mask=attention_mask,
-                               labels=source_ids, decoder_attention_mask=attention_mask, output_hidden_states=True)
+        if self.args.prefix_tuning:
+            batch_size = attention_mask.shape[0]
+            past_key_values = self.get_prompt(batch_size=batch_size) # add
+            prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len,dtype=attention_mask.dtype).to(self.encoder.device)
+            prefix_attention_mask = torch.cat((prefix_attention_mask, attention_mask), dim=1)
+            # encoder_source_ids = torch.cat((self.code_prefix_tokens.expand_as(prefix_attention_mask),source_ids),dim=1)
+            outputs = self.encoder(
+                input_ids=source_ids, 
+                attention_mask=attention_mask,
+                labels=source_ids, 
+                decoder_attention_mask=prefix_attention_mask, 
+                output_hidden_states=True,
+                past_key_values=past_key_values#tuple((i.contiguous() for i in past_key_values)) # [2,16,12,6,64]
+                )
+        else:
+            outputs = self.encoder(input_ids=source_ids, attention_mask=attention_mask,
+                                    labels=source_ids, decoder_attention_mask=attention_mask, output_hidden_states=True)
         hidden_states = outputs['decoder_hidden_states'][-1]
         eos_mask = source_ids.eq(self.config.eos_token_id)
 
@@ -413,12 +506,41 @@ class DefectModel(nn.Module):
 
     def get_roberta_vec(self, source_ids):
         attention_mask = source_ids.ne(self.tokenizer.pad_token_id)
-        vec = self.encoder(input_ids=source_ids, attention_mask=attention_mask)[0][:, 0, :]
+        position_ids = torch.arange(1,source_ids.size(1)+1, dtype=torch.long, device=source_ids.device).expand_as(source_ids).cuda()
+        position_ids = position_ids*attention_mask
+        if self.args.prefix_tuning:
+            batch_size = attention_mask.shape[0] #batch_size   attention_mask.shape (batch_size,512)
+            past_key_values = self.get_prompt(batch_size=batch_size) # batch_size*[2,12,12,nodenum,64]
+            prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len,dtype=attention_mask.dtype).cuda()#[batch_size,nodenum]
+            attention_mask = torch.cat((prefix_attention_mask, attention_mask), dim=1)
+            vec = self.encoder(
+                input_ids=source_ids, 
+                position_ids=position_ids,
+                attention_mask=attention_mask, 
+                past_key_values=past_key_values # add
+                )[0][:, 0, :]
+        else:
+            vec = self.encoder(input_ids=source_ids, attention_mask=attention_mask)[0][:, 0, :]
         return vec
 
     def get_unixcoder_vec(self, source_ids):
-        outputs = self.encoder(source_ids,attention_mask=source_ids.ne(1))[0]#shape:batch_size*max_len512*hidden_size768
-        outputs = (outputs * source_ids.ne(1)[:,:,None]).sum(1)/source_ids.ne(1).sum(1)[:,None]#shape:batch_size*hidden_size
+        attention_mask = source_ids.ne(1)
+        position_ids = torch.arange(1,source_ids.size(1)+1, dtype=torch.long, device=source_ids.device).expand_as(source_ids).cuda()
+        position_ids = position_ids*attention_mask
+        if self.args.prefix_tuning:
+            batch_size = attention_mask.shape[0]
+            past_key_values = self.get_prompt(batch_size=batch_size) # add
+            prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len,dtype=attention_mask.dtype).to(self.encoder.device)
+            attention_mask = torch.cat((prefix_attention_mask, attention_mask), dim=1)
+            outputs = self.encoder(
+                source_ids,
+                position_ids=position_ids,
+                attention_mask=attention_mask,
+                past_key_values=past_key_values # add
+            )[0]
+        else:
+            outputs = self.encoder(source_ids,attention_mask=attention_mask)[0]#shape:batch_size*max_len512*hidden_size768
+        outputs = (outputs * source_ids.ne(1)[:,:,None]).sum(1)/attention_mask.sum(1)[:,None]#shape:batch_size*hidden_size
         # outputs = outputs.reshape(-1,2,outputs.size(-1))
         # outputs = torch.nn.functional.normalize(outputs, p=2, dim=-1)
         # cos_sim = (outputs[:,0]*outputs[:,1]).sum(-1)
@@ -479,11 +601,13 @@ class Seq2Seq(nn.Module):
         * `eos_id`- end of symbol ids in target for beam search.
     """
 
-    def __init__(self, encoder, decoder, config, beam_size=None, max_length=None, sos_id=None, eos_id=None):
+    def __init__(self, encoder, decoder, config, tokenizer, args, beam_size=None, max_length=None, sos_id=None, eos_id=None):
         super(Seq2Seq, self).__init__()
         self.encoder = encoder
         self.decoder = decoder
         self.config = config
+        self.tokenizer = tokenizer
+        self.args = args
         self.register_buffer("bias", torch.tril(torch.ones(2048, 2048)))
         self.dense = nn.Linear(config.hidden_size, config.hidden_size)
         self.lm_head = nn.Linear(
@@ -496,6 +620,54 @@ class Seq2Seq(nn.Module):
         self.sos_id = sos_id
         self.eos_id = eos_id
 
+        if self.args.prefix_tuning:
+            if self.args.model_name in ['t5','codet5']:
+                embeddings_weight = self.encoder.shared.weight
+            elif self.args.model_name in ['bart','plbart']:
+                embeddings_weight = self.encoder.model.shared.weight
+            else:
+                embeddings_weight = self.encoder.embeddings.word_embeddings.weight
+            if self.args.fix_model_param:
+                for param in self.encoder.parameters():
+                    param.requires_grad = False
+            self.code_prefix_tokens, self.code_prefix_matrix = load_prefix_code(self.args,self.tokenizer)
+            self.code_prefix_tokens = torch.tensor(self.code_prefix_tokens, dtype=torch.long).cuda()
+            self.code_prefix_matrix = torch.tensor(self.code_prefix_matrix, dtype=torch.long).cuda()
+            self.pre_seq_len = self.args.max_source_length
+
+            self.n_layer = config.num_hidden_layers
+            self.n_head = config.num_attention_heads
+            self.n_embd = config.hidden_size // config.num_attention_heads
+            # add prefix encoder
+            self.prefix_encoder = PrefixEncoder(self.config, embeddings_weight,self.args)
+            if self.args.model_name in ['t5','codet5']:
+                self.dropout = torch.nn.Dropout(config.dropout_rate)
+            elif self.args.model_name in ['bart','plbart']:
+                self.dropout = torch.nn.Dropout(config.dropout)
+            else:
+                self.dropout = torch.nn.Dropout(config.hidden_dropout_prob)
+
+    def get_prompt(self, batch_size):
+        code_prefix_tokens = self.code_prefix_tokens.unsqueeze(0).expand(batch_size, -1)
+        code_prefix_matrix = self.code_prefix_matrix.unsqueeze(0).expand(batch_size, -1, -1)
+        past_key_values = self.prefix_encoder(code_prefix_tokens, code_prefix_matrix)
+        # bsz, seqlen, _ = past_key_values.shape
+
+        past_key_values = past_key_values.view(
+            batch_size, #1 (8)
+            self.pre_seq_len, #3 (seq_len)512
+            self.n_layer * 2, #0 (2)
+            self.n_head, #2 (12)
+            self.n_embd #4 (64)
+        ).contiguous()#注意这里加了contiguous()!
+
+        past_key_values = self.dropout(past_key_values)
+        if self.args.model_name in ['t5','codet5']:
+            past_key_values = past_key_values.permute([2, 0, 3, 1, 4]).contiguous().split(4)
+        else:
+            past_key_values = past_key_values.permute([2, 0, 3, 1, 4]).contiguous().split(2)
+        return past_key_values
+    
     def _tie_or_clone_weights(self, first_module, second_module):
         """ Tie or clone module weights depending of weither we are using TorchScript or not
         """
@@ -512,7 +684,23 @@ class Seq2Seq(nn.Module):
                                    self.encoder.embeddings.word_embeddings)
 
     def forward(self, source_ids=None, source_mask=None, target_ids=None, target_mask=None, args=None):
-        outputs = self.encoder(source_ids, attention_mask=source_mask)#source_mask size: [batch_size, source_length=256]
+        if self.args.prefix_tuning:
+            attention_mask = source_mask
+            position_ids = torch.arange(1,source_ids.size(1)+1, dtype=torch.long, device=source_ids.device).expand_as(source_ids).cuda()
+            position_ids = position_ids*attention_mask
+            batch_size = attention_mask.shape[0]
+            past_key_values = self.get_prompt(batch_size=batch_size) # add
+            prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len,dtype=attention_mask.dtype).to(self.encoder.device)
+            attention_mask = torch.cat((prefix_attention_mask, attention_mask), dim=1)
+            # encoder_source_ids = torch.cat((self.code_prefix_tokens.expand_as(prefix_attention_mask),source_ids),dim=1)
+            outputs = self.encoder(
+                input_ids=source_ids,
+                position_ids=position_ids, 
+                attention_mask=attention_mask,
+                past_key_values=past_key_values#tuple((i.contiguous() for i in past_key_values)) # [2,16,12,6,64]
+                )
+        else:
+            outputs = self.encoder(source_ids, attention_mask=source_mask)#source_mask size: [batch_size, source_length=256]
         encoder_attention = outputs[-1]#[batch, 256, 768]
         encoder_output = outputs[0].permute([1, 0, 2]).contiguous()#[256, batch, 768]
         if target_ids is not None:
@@ -520,8 +708,23 @@ class Seq2Seq(nn.Module):
                 (1 - self.bias[:target_ids.shape[1], :target_ids.shape[1]])#[128,128] upper triangular=-10000 lower=0 mask upper
             tgt_embeddings = self.encoder.embeddings(
                 target_ids).permute([1, 0, 2]).contiguous()#[128, batch, 768]
+            # if self.args.prefix_tuning:
+            #     batch_size = attn_mask.shape[0]
+            #     past_key_values = self.get_prompt(batch_size=batch_size) # add
+            #     prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len,dtype=attn_mask.dtype).to(self.encoder.device)
+            #     prefix_attention_mask = torch.cat((prefix_attention_mask, attn_mask), dim=1)
+            #     # encoder_source_ids = torch.cat((self.code_prefix_tokens.expand_as(prefix_attention_mask),source_ids),dim=1)
+            #     outputs = self.encoder(
+            #         input_ids=source_ids, 
+            #         attention_mask=attn_mask,
+            #         labels=source_ids, 
+            #         decoder_attention_mask=prefix_attention_mask, 
+            #         output_hidden_states=True,
+            #         past_key_values=past_key_values#tuple((i.contiguous() for i in past_key_values)) # [2,16,12,6,64]
+            #         )
+            # else:
             out = self.decoder(tgt_embeddings, encoder_output, tgt_mask=attn_mask,
-                               memory_key_padding_mask=~source_mask)#[128, batch, 768]
+                            memory_key_padding_mask=~source_mask)#[128, batch, 768]
             # memory_key_padding_mask=(1 - source_mask).bool())
             hidden_states = torch.tanh(self.dense(
                 out)).permute([1, 0, 2]).contiguous()
@@ -554,8 +757,23 @@ class Seq2Seq(nn.Module):
                          :input_ids.shape[1]])
                     tgt_embeddings = self.encoder.embeddings(
                         input_ids).permute([1, 0, 2]).contiguous()
-                    out = self.decoder(tgt_embeddings, context, tgt_mask=attn_mask,
-                                       memory_key_padding_mask=~context_mask)
+                    if self.args.prefix_tuning:
+                        batch_size = attn_mask.shape[0]
+                        past_key_values = self.get_prompt(batch_size=batch_size) # add
+                        prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len,dtype=attn_mask.dtype).to(self.encoder.device)
+                        prefix_attention_mask = torch.cat((prefix_attention_mask, attn_mask), dim=1)
+                        # encoder_source_ids = torch.cat((self.code_prefix_tokens.expand_as(prefix_attention_mask),source_ids),dim=1)
+                        outputs = self.encoder(
+                            input_ids=source_ids, 
+                            attention_mask=attn_mask,
+                            labels=source_ids, 
+                            decoder_attention_mask=prefix_attention_mask, 
+                            output_hidden_states=True,
+                            past_key_values=past_key_values#tuple((i.contiguous() for i in past_key_values)) # [2,16,12,6,64]
+                            )
+                    else:
+                        out = self.decoder(tgt_embeddings, context, tgt_mask=attn_mask,
+                                        memory_key_padding_mask=~context_mask)
                     # memory_key_padding_mask=(1 - context_mask).bool())
                     out = torch.tanh(self.dense(out))
                     hidden_states = out.permute(

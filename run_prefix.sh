@@ -1,5 +1,5 @@
 WORKDIR="/data/pretrain-attention/CodePrompt"
-#WORKDIR="/wjn/projects/code/CodePrompt"
+#WORKDIR="/wjn/projects/pe_code/CodePrompt"
 HUGGINGFACE_LOCALS="/data/huggingface_models/"
 #HUGGINGFACE_LOCALS="/wjn/pre-trained-lm/"
 export PYTHONPATH=$WORKDIR

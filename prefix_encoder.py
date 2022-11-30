@@ -178,16 +178,16 @@ class PrefixEncoder(torch.nn.Module):
 
     Output shape: (batch-size, prefix-length, 2*layers*hidden)
     '''
-    def __init__(self, config, weight):#加一个bert embedding
+    def __init__(self, config, weight, args):#加一个bert embedding
         super().__init__()
         self.prefix_projection = True#config.prefix_projection
         self.prefix_hidden_size = 128
         # adj, features, labels, idx_train, idx_val, idx_test = load_data()
         # (hidden_size*nheads, output_size, dropout=dropout, alpha=alpha,concat=False)
-        
+        self.args=args
         if self.prefix_projection:
             # Use a two-layer MLP to encode the prefix
-            self.embedding = torch.nn.Embedding(config.vocab_size, config.hidden_size)#50264,768
+            self.embedding = torch.nn.Embedding(config.vocab_size, config.hidden_size)#Embedding(51416,768)
             # self.embedding.weight= weight
             self.gat_layer=GATLayer(config.hidden_size,config.hidden_size,dropout=0.6,alpha=0.2,concat=False)
             #config.pre_seq_len 新随机初始化 换成bert embedding 希望和此表有关
@@ -203,14 +203,18 @@ class PrefixEncoder(torch.nn.Module):
             self.embedding = torch.nn.Embedding(config.vocab_size, config.num_hidden_layers * 2 * config.hidden_size)
 
     def forward(self, prefix: torch.Tensor, matrix: torch.Tensor) -> torch.Tensor:
-        #prefix传进来可能是[17053,18,3516,4492]拿embedding
+        #prefix传进来可能是[17053,18,3516,4492] shape是[2*batch,len(token)]拿embedding
         #用GNN 改成传邻接矩阵
         if self.prefix_projection:
             prefix_tokens = self.embedding(prefix) ##就是GNN的x 生成的codeprompt [batch_size,pre_seq_len, num_hidden_layers]
             #但我们还要加edge_index 只保留存在边的缩影   #初始化定死但边可以动！（启发式边可以动）
             #code embedding只是初始化 可以调 但索引不希望定死 就是不知道能不能带权重 就是attention
             prefix_tokens=self.gat_layer(prefix_tokens,matrix)#[batch_size,pre_seq_len, num_hidden_layers=768]
-            past_key_values = self.trans(prefix_tokens)
+            
+            prefix_tokens_repeat=prefix_tokens.repeat(1,self.args.max_source_length//prefix_tokens.shape[1],1)
+            if self.args.max_source_length%prefix_tokens.shape[1]!=0:
+                prefix_tokens_repeat+=prefix_tokens[:,:self.args.max_source_length%prefix_tokens.shape[1],:]
+            past_key_values = self.trans(prefix_tokens_repeat)
         else:
             past_key_values = self.embedding(prefix)
         return past_key_values#shape:[batch_size,pre_seq_len, num_hidden_layers768 * 2 * hidden_size 12]
