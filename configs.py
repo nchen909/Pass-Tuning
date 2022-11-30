@@ -198,7 +198,7 @@ def set_hyperparas(args):
         else:
             args.batch_size = 32 if not torch.cuda.is_available() else 32 * torch.cuda.device_count()
             if args.task=='refine' or args.task=='generate':
-                args.batch_size *= 2
+                args.batch_size =*= 2
         if args.task in ['clone']:
             if args.prefix_tuning:
                 args.batch_size = args.batch_size // 2 #4
