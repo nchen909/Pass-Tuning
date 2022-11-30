@@ -189,7 +189,7 @@ def set_hyperparas(args):
             #     args.num_train_epochs = args.num_train_epochs * 10
             args.patience = args.num_train_epochs*1000#min( 10, args.num_train_epochs//5*5)
         else:
-            args.num_train_epochs = 60# if not torch.cuda.is_available() else 60*torch.cuda.device_count()//2
+            args.num_train_epochs = 60 if not torch.cuda.is_available() else 60*torch.cuda.device_count()//2
             args.patience = min( 10, args.num_train_epochs//5*2)
         if args.model_name in ['t5', 'codet5']:
             args.batch_size = 16  if not torch.cuda.is_available() else 16 * torch.cuda.device_count()
