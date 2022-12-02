@@ -360,7 +360,12 @@ def main():
                     train_dataloader), desc="Training")
                 nb_tr_examples, nb_tr_steps, tr_loss = 0, 0, 0
                 model.train()
+                # kkk=0
                 for step, batch in enumerate(bar):
+                    # if kkk<5:
+                    #     kkk+=1
+                    # else:
+                    #     break
                     batch = tuple(t.to(args.device) for t in batch)
 
                     source_ids, target_ids = batch

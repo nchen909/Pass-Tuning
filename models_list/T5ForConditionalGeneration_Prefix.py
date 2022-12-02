@@ -11,6 +11,8 @@ from torch import nn
 from typing import Optional, Tuple, Union
 from utils import load_prefix_code
 from code_prefix import CodePrefix
+import logging
+logger = logging.getLogger(__name__)
 class T5ForConditionalGeneration_Prefix(T5ForConditionalGeneration):
     def __init__(self,config: T5Config,tokenizer,args):
         T5ForConditionalGeneration.__init__(self,config)
@@ -164,13 +166,24 @@ class T5ForConditionalGeneration_Prefix(T5ForConditionalGeneration):
 
         # Decode
         if self.args.prefix_tuning:
+
             # decoder_attention_mask = source_mask
             # position_ids = torch.arange(1,source_ids.size(1)+1, dtype=torch.long, device=source_ids.device).expand_as(source_ids).cuda()
             # position_ids = position_ids*decoder_attention_mask
-            batch_size = decoder_attention_mask.shape[0]
+            
+            # if True:#decoder_attention_mask is None:
+            #     print(self.args.max_source_length)
+            #     print(self.args.max_target_length)
+            #     print(self.pre_seq_len)
+            #     print(attention_mask.shape)
+            #     print(self.n_head)
+            #     print(self.args.batch_size)
+            #     print(decoder_attention_mask.shape[0])
+            batch_size = attention_mask.shape[0]#decoder_attention_mask.shape[0]
             past_key_values = self.get_prompt(batch_size=batch_size) # add
-            prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len,dtype=attention_mask.dtype).to(self.decoder.device)
-            decoder_attention_mask = torch.cat((prefix_attention_mask, decoder_attention_mask), dim=1)
+            if decoder_attention_mask is not None:
+                prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len,dtype=attention_mask.dtype).to(self.decoder.device)
+                decoder_attention_mask = torch.cat((prefix_attention_mask, decoder_attention_mask), dim=1)
             # encoder_source_ids = torch.cat((self.code_prefix_tokens.expand_as(prefix_attention_mask),source_ids),dim=1)
             # outputs = self.encoder(
             #     input_ids=source_ids,

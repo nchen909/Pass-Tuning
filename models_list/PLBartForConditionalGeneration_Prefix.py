@@ -131,10 +131,11 @@ class PLBartForConditionalGeneration_Prefix(PLBartForConditionalGeneration):
             # decoder_attention_mask = source_mask
             # position_ids = torch.arange(1,source_ids.size(1)+1, dtype=torch.long, device=source_ids.device).expand_as(source_ids).cuda()
             # position_ids = position_ids*decoder_attention_mask
-            batch_size = decoder_attention_mask.shape[0]
+            batch_size = attention_mask.shape[0]
             past_key_values = self.get_prompt(batch_size=batch_size) # add
-            prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len,dtype=decoder_attention_mask.dtype).to(self.model.decoder.device)
-            decoder_attention_mask = torch.cat((prefix_attention_mask, decoder_attention_mask), dim=1)
+            if decoder_attention_mask is not None:
+                prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len,dtype=decoder_attention_mask.dtype).to(self.model.decoder.device)
+                decoder_attention_mask = torch.cat((prefix_attention_mask, decoder_attention_mask), dim=1)
             # encoder_source_ids = torch.cat((self.code_prefix_tokens.expand_as(prefix_attention_mask),source_ids),dim=1)
             # outputs = self.encoder(
             #     input_ids=source_ids,
