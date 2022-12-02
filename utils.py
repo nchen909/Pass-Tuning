@@ -594,7 +594,36 @@ def load_prefix_code(args, tokenizer):
             feature= InputFeatures(example_id=1,source_ids=tokenizer.encode(examples[0].source, max_length=args.max_source_length, padding='max_length', truncation=True))
             data= torch.tensor([feature.source_ids], dtype=torch.long)
             prefix_code=PrefixCode(args, examples, data, 'java')
-
+    elif args.task == 'refine':
+        with open(filename, encoding="utf-8") as f:
+            line = f.readline().strip()
+            examples=[Example(1,line)]
+            feature= InputFeatures(example_id=1,source_ids=tokenizer.encode(examples[0].source, max_length=args.max_source_length, padding='max_length', truncation=True))
+            data= torch.tensor([feature.source_ids], dtype=torch.long)
+            prefix_code=PrefixCode(args, examples, data, 'java')
+    elif args.task == 'translate':
+        with open(filename, encoding="utf-8") as f:
+            line = f.readline().strip()
+            examples=[Example(1,line)]
+            feature= InputFeatures(example_id=1,source_ids=tokenizer.encode(examples[0].source, max_length=args.max_source_length, padding='max_length', truncation=True))
+            data= torch.tensor([feature.source_ids], dtype=torch.long)
+            if args.sub_task == 'java-cs':
+                prefix_code=PrefixCode(args, examples, data, 'c_sharp')
+            else:
+                prefix_code=PrefixCode(args, examples, data, 'java')
+    elif args.task == 'summarize':
+        with open(filename, encoding="utf-8") as f:
+            line = f.readline().strip()
+            js = json.loads(line)
+            js['code_tokens']=' '.join(js['code_tokens']).replace('</s>', '<unk>').replace('\n',' ')
+            examples=' '.join(js['code_tokens'].strip().split())
+            js['docstring_tokens']=' '.join(js['docstring_tokens']).replace('</s>', '<unk>').replace('\n',' ')
+            nl=' '.join(js['docstring_tokens'].strip().split())
+            examples=[Example(1,examples)]
+            feature= InputFeatures(example_id=1,source_ids=tokenizer.encode(examples[0].source, max_length=args.max_source_length, padding='max_length', truncation=True))
+            data= torch.tensor([feature.source_ids], dtype=torch.long)
+            prefix_code=PrefixCode(args, examples, data, args.sub_task)
+    
     ast_list, sast_list, tokens_list, tokens_type_list, leaves =prefix_code.get_ast_and_token(prefix_code.examples, prefix_code.parser, prefix_code.lang)
     tokens_ids=tokenizer.convert_tokens_to_ids(tokens_list[0].values())
     distance_list=prefix_code.get_token_distance(args, leaves, ast_list, sast_list, 'shortest_path_length')[0]

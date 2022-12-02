@@ -138,17 +138,17 @@ def set_hyperparas(args):
     args.weight_decay = 0.0
     if args.task == 'summarize':
         args.data_num = args.few_shot if args.few_shot > 0 else -1
-        args.lr = 2e-5 if not args.prefix_tuning else 2e-3
+        args.lr = 2e-5 if not args.prefix_tuning else 2e-5#2e-3
         args.max_source_length = 256
         args.max_target_length = 128
     elif args.task == 'translate':
         args.data_num = args.few_shot if args.few_shot > 0 else -1
-        args.lr = 2e-5 if not args.prefix_tuning else 2e-3
+        args.lr = 2e-5 if not args.prefix_tuning else 2e-5#2e-3
         args.max_source_length = 320
         args.max_target_length = 256
     elif args.task == 'refine':
         args.data_num = args.few_shot if args.few_shot > 0 else -1
-        args.lr = 2e-5 if not args.prefix_tuning else 2e-3
+        args.lr = 2e-5 if not args.prefix_tuning else 2e-5#2e-3
         if args.sub_task == 'small':
             args.max_source_length = 130
             args.max_target_length = 120
@@ -157,17 +157,17 @@ def set_hyperparas(args):
             args.max_target_length = 240
     elif args.task == 'generate':
         args.data_num = args.few_shot if args.few_shot > 0 else -1
-        args.lr = 2e-5 if not args.prefix_tuning else 2e-3
+        args.lr = 2e-5 if not args.prefix_tuning else 2e-5#2e-3
         args.max_source_length = 320
         args.max_target_length = 150
     elif args.task == 'complete':
         args.data_num = args.few_shot if args.few_shot > 0 else -1
-        args.lr = 1e-5 if not args.prefix_tuning else 1e-3
+        args.lr = 1e-5 if not args.prefix_tuning else 1e-5#1e-3
         args.max_source_length = 256
         args.max_target_length = 256
     elif args.task == 'defect':
         args.data_num = args.few_shot * 2 if args.few_shot > 0 else -1
-        args.lr = 8e-6 if not args.prefix_tuning else 8e-4
+        args.lr = 8e-6 if not args.prefix_tuning else 8e-6#8e-4
         args.max_source_length = 512
         args.max_target_length = 3  # as do not need to add lang ids
     elif args.task == 'clone':
@@ -204,6 +204,7 @@ def set_hyperparas(args):
                 args.batch_size = args.batch_size // 2 #4
             else:
                 args.batch_size = args.batch_size // 2
+        # args.batch_size = 2######################################################
         # args.batch_size = 128 if args.model_name not in ['t5', 'codet5'] else 16
         args.warmup_steps = 1000
         args.dev_batch_size = args.batch_size * 1 if not torch.cuda.is_available() else args.batch_size//torch.cuda.device_count()*1

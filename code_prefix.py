@@ -170,7 +170,7 @@ class GAT(nn.Module):
         return F.log_softmax(x,dim=1)
 
 
-class PrefixEncoder(torch.nn.Module):
+class CodePrefix(torch.nn.Module):
     r'''
     The torch.nn model to encode the prefix
 
@@ -213,7 +213,7 @@ class PrefixEncoder(torch.nn.Module):
             
             prefix_tokens_repeat=prefix_tokens.repeat(1,self.args.max_source_length//prefix_tokens.shape[1],1)
             if self.args.max_source_length%prefix_tokens.shape[1]!=0:
-                prefix_tokens_repeat+=prefix_tokens[:,:self.args.max_source_length%prefix_tokens.shape[1],:]
+                prefix_tokens_repeat=torch.cat([prefix_tokens[:,:self.args.max_source_length%prefix_tokens.shape[1],:],prefix_tokens_repeat],dim=1)
             past_key_values = self.trans(prefix_tokens_repeat)
         else:
             past_key_values = self.embedding(prefix)
