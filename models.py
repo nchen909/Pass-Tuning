@@ -45,7 +45,7 @@ MODEL_CLASSES = {'roberta': (AutoConfig, AutoModel, AutoTokenizer),
                  't5': (AutoConfig, T5ForConditionalGeneration, AutoTokenizer),
                  'codet5': (AutoConfig, T5ForConditionalGeneration, AutoTokenizer),
                  'bart': (AutoConfig, BartForConditionalGeneration, AutoTokenizer),
-                 'plbart':(AutoConfig, AutoModelForSeq2SeqLM, AutoTokenizer)}
+                 'plbart':(AutoConfig, PLBartForConditionalGeneration, AutoTokenizer)}
 MODEL_CLASSES_PLG = {'roberta': (AutoConfig, AutoModel, AutoTokenizer),
                  'codebert': (AutoConfig, AutoModel, AutoTokenizer),
                  'graphcodebert': (AutoConfig, AutoModel, AutoTokenizer),
@@ -133,8 +133,10 @@ def bulid_or_load_cls_model(args):
     # if args.model_name in ['unixcoder']:
     #     model = model_class.from_pretrained(checkpoint, output_attentions=True)
     #     model = Model4UniXcoder(model,config,tokenizer,args)
-
-    model = model_class.from_pretrained(checkpoint, output_attentions=True)
+    if args.model_name not in ['t5', 'codet5','bart','plbart']:
+        model = model_class.from_pretrained(checkpoint, output_attentions=True)
+    else:
+        model = model_class.from_pretrained(checkpoint, output_attentions=True)
     if args.task == 'defect':
         model = DefectModel(model, config, tokenizer, args)
     elif args.task == 'clone':

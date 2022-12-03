@@ -46,7 +46,9 @@ class T5ForConditionalGeneration_Prefix(T5ForConditionalGeneration):
                 self.dropout = torch.nn.Dropout(config.dropout)
             else:
                 self.dropout = torch.nn.Dropout(config.hidden_dropout_prob)
-    def get_prompt(self, batch_size):
+    def get_prompt(self, batch_size, is_generate=False):
+        if is_generate:
+            batch_size = batch_size // self.args.beam_size
         code_prefix_tokens = self.code_prefix_tokens.unsqueeze(0).expand(batch_size, -1)
         code_prefix_matrix = self.code_prefix_matrix.unsqueeze(0).expand(batch_size, -1, -1)
         past_key_values = self.code_prefix(code_prefix_tokens, code_prefix_matrix)
@@ -59,6 +61,9 @@ class T5ForConditionalGeneration_Prefix(T5ForConditionalGeneration):
             self.n_head, #2 (12)
             self.n_embd #4 (64)
         ).contiguous()#注意这里加了contiguous()!
+
+        if is_generate:
+            past_key_values = past_key_values.repeat(self.args.beam_size,1,1,1,1)
 
         past_key_values = self.dropout(past_key_values)
         if self.args.model_name in ['t5','codet5']:
@@ -126,6 +131,44 @@ class T5ForConditionalGeneration_Prefix(T5ForConditionalGeneration):
                 decoder_head_mask = head_mask
 
         # Encode if needed (training, first prediction pass)
+        # if self.args.prefix_tuning:
+        #     print(attention_mask.shape)
+        #     print(decoder_attention_mask.shape)
+        #     batch_size = attention_mask.shape[0]#decoder_attention_mask.shape[0] #self.args.batch_size*self.args.beam_size
+        #     past_key_values_2 = self.get_prompt(batch_size=batch_size) # add
+        #     prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len,dtype=attention_mask.dtype).to(self.encoder.device)
+        #     attention_mask = torch.cat((prefix_attention_mask, attention_mask), dim=1)
+
+
+        # if self.args.prefix_tuning:
+
+        #     # decoder_attention_mask = source_mask
+        #     # position_ids = torch.arange(1,source_ids.size(1)+1, dtype=torch.long, device=source_ids.device).expand_as(source_ids).cuda()
+        #     # position_ids = position_ids*decoder_attention_mask
+
+        #     # if True:#decoder_attention_mask is None:
+        #     #     print(self.args.max_source_length)
+        #     #     print(self.args.max_target_length)
+        #     #     print(self.pre_seq_len)
+        #     #     print(attention_mask.shape)
+        #     #     print(self.n_head)
+        #     #     print(self.args.batch_size)
+        #     #     print(decoder_attention_mask.shape[0])
+        #     batch_size = attention_mask.shape[0]#decoder_attention_mask.shape[0] #self.args.batch_size*self.args.beam_size
+        #     past_key_values_2 = self.get_prompt(batch_size=batch_size) # add
+        #     if attention_mask is not None:
+        #         prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len,dtype=attention_mask.dtype).to(self.decoder.device)
+        #         attention_mask = torch.cat((prefix_attention_mask, attention_mask), dim=1)
+        #     # encoder_source_ids = torch.cat((self.code_prefix_tokens.expand_as(prefix_attention_mask),source_ids),dim=1)
+        #     # outputs = self.encoder(
+        #     #     input_ids=source_ids,
+        #     #     # position_ids=position_ids, 
+        #     #     attention_mask=decoder_attention_mask,
+        #     #     past_key_values=past_key_values#tuple((i.contiguous() for i in past_key_values)) # [2,16,12,6,64]
+        #     #     )
+
+
+
         if encoder_outputs is None:
             # Convert encoder inputs in embeddings if needed
             encoder_outputs = self.encoder(
@@ -136,6 +179,7 @@ class T5ForConditionalGeneration_Prefix(T5ForConditionalGeneration):
                 output_attentions=output_attentions,
                 output_hidden_states=output_hidden_states,
                 return_dict=return_dict,
+                # past_key_values=past_key_values_2,
             )
         elif return_dict and not isinstance(encoder_outputs, BaseModelOutput):
             encoder_outputs = BaseModelOutput(
@@ -170,8 +214,8 @@ class T5ForConditionalGeneration_Prefix(T5ForConditionalGeneration):
             # decoder_attention_mask = source_mask
             # position_ids = torch.arange(1,source_ids.size(1)+1, dtype=torch.long, device=source_ids.device).expand_as(source_ids).cuda()
             # position_ids = position_ids*decoder_attention_mask
-            
-            # if True:#decoder_attention_mask is None:
+
+            # if True:#decoder_attention_mask is None:#model.generate()
             #     print(self.args.max_source_length)
             #     print(self.args.max_target_length)
             #     print(self.pre_seq_len)
@@ -179,11 +223,14 @@ class T5ForConditionalGeneration_Prefix(T5ForConditionalGeneration):
             #     print(self.n_head)
             #     print(self.args.batch_size)
             #     print(decoder_attention_mask.shape[0])
-            batch_size = attention_mask.shape[0]#decoder_attention_mask.shape[0]
-            past_key_values = self.get_prompt(batch_size=batch_size) # add
-            if decoder_attention_mask is not None:
-                prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len,dtype=attention_mask.dtype).to(self.decoder.device)
+            batch_size = attention_mask.shape[0]#decoder_attention_mask.shape[0] #self.args.batch_size*self.args.beam_size
+            
+            if decoder_attention_mask is not None:# refers to model.generate()
+                past_key_values = self.get_prompt(batch_size=batch_size) # add
+                prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len,dtype=decoder_attention_mask.dtype).to(self.decoder.device)
                 decoder_attention_mask = torch.cat((prefix_attention_mask, decoder_attention_mask), dim=1)
+            else:
+                past_key_values = self.get_prompt(batch_size=batch_size,is_generate=True) # add
             # encoder_source_ids = torch.cat((self.code_prefix_tokens.expand_as(prefix_attention_mask),source_ids),dim=1)
             # outputs = self.encoder(
             #     input_ids=source_ids,

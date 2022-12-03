@@ -188,7 +188,7 @@ class CodePrefix(torch.nn.Module):
         if self.prefix_projection:
             # Use a two-layer MLP to encode the prefix
             self.embedding = torch.nn.Embedding(config.vocab_size, config.hidden_size)#Embedding(51416,768)
-            # self.embedding.weight= weight
+            self.embedding.weight= weight
             self.gat_layer=GATLayer(config.hidden_size,config.hidden_size,dropout=0.6,alpha=0.2,concat=False)
             #config.pre_seq_len 新随机初始化 换成bert embedding 希望和此表有关
             #传进来是词表大小 token_id对应词表向量

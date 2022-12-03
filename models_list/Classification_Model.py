@@ -149,14 +149,14 @@ class CloneModel(nn.Module):
             prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len,dtype=attention_mask.dtype).to(self.encoder.device)
             prefix_attention_mask = torch.cat((prefix_attention_mask, attention_mask), dim=1)
             # encoder_source_ids = torch.cat((self.code_prefix_tokens.expand_as(prefix_attention_mask),source_ids),dim=1)
-            outputs = self.encoder(
+            outputs = self.encoder(#encoder is T5ForConditionalGeneration(T5Model)!是T5模型不是里面的encoder
                 input_ids=source_ids, 
                 attention_mask=attention_mask,
                 labels=source_ids, 
                 decoder_attention_mask=prefix_attention_mask, 
                 output_hidden_states=True,
                 past_key_values=past_key_values#tuple((i.contiguous() for i in past_key_values)) # [2,16,12,6,64]
-                )
+                )#只训了encoder部分 吐出来encoder_hidden_states decoder没输入
         else:
             outputs = self.encoder(input_ids=source_ids, attention_mask=attention_mask,
                                     labels=source_ids, decoder_attention_mask=attention_mask, output_hidden_states=True)
