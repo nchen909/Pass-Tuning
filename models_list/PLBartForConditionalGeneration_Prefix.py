@@ -89,7 +89,7 @@ class PLBartForConditionalGeneration_Prefix(PLBartForConditionalGeneration):
         ).contiguous()#注意这里加了contiguous()!
 
         if is_generate:
-            past_key_values = past_key_values.repeat(self.args.beam_size,1,1,1,1)
+            past_key_values = past_key_values.index_select(0,torch.LongTensor([i for i in range(batch_size) for _ in range(self.args.beam_size)]).to(past_key_values.device))
 
         past_key_values = self.dropout(past_key_values)
         if self.args.model_name in ['t5','codet5']:
