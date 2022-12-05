@@ -63,7 +63,8 @@ class T5ForConditionalGeneration_Prefix(T5ForConditionalGeneration):
         ).contiguous()#注意这里加了contiguous()!
 
         if is_generate:
-            past_key_values = past_key_values.repeat(self.args.beam_size,1,1,1,1)
+            # past_key_values = past_key_values.repeat(self.args.beam_size,1,1,1,1)
+            past_key_values = past_key_values.index_select(0,torch.LongTensor(self.args.beam_size*list(range(batch_size))).to(past_key_values.device))
 
         past_key_values = self.dropout(past_key_values)
         if self.args.model_name in ['t5','codet5']:

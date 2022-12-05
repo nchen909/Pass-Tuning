@@ -214,9 +214,15 @@ def set_hyperparas(args):
         args.num_train_epochs = 64
         # args.lr =5e-8
         args.batch_size = 2
+        args.dev_batch_size = args.batch_size
+        args.test_batch_size = args.batch_size
     elif args.few_shot < 512: #128,256
         args.num_train_epochs = 48
         args.batch_size = 4 if args.model_name not in ['t5', 'codet5'] else 4
+        args.dev_batch_size = args.batch_size
+        args.test_batch_size = args.batch_size
     elif args.few_shot < 2048: #512,1024
         args.num_train_epochs = 32
         args.batch_size = 8 if args.model_name not in ['t5', 'codet5'] else 4
+        args.dev_batch_size = args.batch_size
+        args.test_batch_size = args.batch_size
