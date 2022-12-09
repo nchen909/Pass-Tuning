@@ -211,7 +211,7 @@ def eval_bleu_epoch(args, eval_data, eval_examples, model, tokenizer, split_tag,
         id, skip_special_tokens=True, clean_up_tokenization_spaces=False) for id in pred_ids]
     # unixcoder in fewshot will generate '\n' in small batch, and gradually disappear
     if args.model_name in ['unixcoder']:
-        pred_nls = [id.replace('\n','').replace("        "," ").replace("    "," ").replace("\t"," ") for id in pred_nls]
+        pred_nls = [id.replace('\n',' ').replace("        "," ").replace("    "," ").replace("\t"," ") for id in pred_nls]
     output_fn = os.path.join(args.res_dir, "test_{}.output".format(criteria))
     gold_fn = os.path.join(args.res_dir, "test_{}.gold".format(criteria))
     src_fn = os.path.join(args.res_dir, "test_{}.src".format(criteria))

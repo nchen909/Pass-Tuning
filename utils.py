@@ -60,10 +60,10 @@ def convert_examples_to_features(args,item):
         else:
             source_str = "{}: {}".format(args.task, example.source)
     elif args.model_name in ['unixcoder'] and args.task == 'complete':
-        source_str = format_special_chars(tokenizer.tokenize(example.source[:args.max_source_length-3]))
+        source_str = tokenizer.tokenize(example.source[:args.max_source_length-3])#format_special_chars(tokenizer.tokenize(example.source[:args.max_source_length-3]))
         source_str =[tokenizer.sep_token,"<decoder-only>",tokenizer.sep_token]+source_str
     elif args.model_name in ['unixcoder']:
-        source_str = format_special_chars(tokenizer.tokenize(example.source[:args.max_source_length-5]))
+        source_str = tokenizer.tokenize(example.source[:args.max_source_length-5])#format_special_chars(tokenizer.tokenize(example.source[:args.max_source_length-5]))
         source_str =[tokenizer.cls_token,"<encoder-decoder>",tokenizer.sep_token]+source_str+["<mask0>",tokenizer.sep_token]
         # in https://github.com/microsoft/CodeBERT when args.task == 'summarize' they put <mask0> before source_str, which performs not better
     else:
@@ -88,7 +88,7 @@ def convert_examples_to_features(args,item):
             target_ids += [tokenizer.pad_token_id] * padding_length
     else:
         if args.model_name in ['unixcoder']:
-            target_str = format_special_chars(tokenizer.tokenize(example.target)[:args.max_target_length-2])
+            target_str = tokenizer.tokenize(example.target)[:args.max_target_length-2]#format_special_chars(tokenizer.tokenize(example.target)[:args.max_target_length-2])
         else:
             target_str = example.target
         if args.add_lang_ids:
@@ -119,9 +119,9 @@ def convert_clone_examples_to_features(args,item):
         source_str = "{}: {}".format(args.task, example.source)
         target_str = "{}: {}".format(args.task, example.target)
     elif args.model_name in ['unixcoder']:
-        source_str = format_special_chars(tokenizer.tokenize(example.source[:args.max_source_length-4]))
+        source_str = tokenizer.tokenize(example.source[:args.max_source_length-4])#format_special_chars(tokenizer.tokenize(example.source[:args.max_source_length-4]))
         source_str =[tokenizer.cls_token,"<encoder-only>",tokenizer.sep_token]+source_str+[tokenizer.sep_token]
-        target_str = format_special_chars(tokenizer.tokenize(example.target[:args.max_target_length-4]))
+        target_str = tokenizer.tokenize(example.target[:args.max_target_length-4])#format_special_chars(tokenizer.tokenize(example.target[:args.max_target_length-4]))
         target_str =[tokenizer.cls_token,"<encoder-only>",tokenizer.sep_token]+target_str+[tokenizer.sep_token]
         example_index = source_str + target_str
     else:
@@ -151,7 +151,7 @@ def convert_defect_examples_to_features(args,item):
     if args.model_name in ['t5', 'codet5'] and args.add_task_prefix:
         source_str = "{}: {}".format(args.task, example.source)
     elif args.model_name in ['unixcoder']:
-        source_str = format_special_chars(tokenizer.tokenize(example.source[:args.max_source_length-4]))
+        source_str = tokenizer.tokenize(example.source[:args.max_source_length-4])#format_special_chars(tokenizer.tokenize(example.source[:args.max_source_length-4]))
         source_str =[tokenizer.cls_token,"<encoder-only>",tokenizer.sep_token]+source_str+[tokenizer.sep_token]
     else:
         source_str = example.source
@@ -620,7 +620,7 @@ def load_prefix_code(args, tokenizer):
             js = json.loads(line)
             js['code_tokens']=' '.join(js['code_tokens']).replace('</s>', '<unk>').replace('\n',' ')
             examples=' '.join(js['code_tokens'].strip().split())
-            js['docstring_tokens']=' '.join(js['docstring_tokens']).replace('</s>', '<unk>').replace('\n',' ')
+            js['docstring_tokens']=' '.join(js['docstring_tokens']).replace('</s>', '<unk>').replace('\n','')
             nl=' '.join(js['docstring_tokens'].strip().split())
             examples=[Example(1,examples)]
             feature= InputFeatures(example_id=1,source_ids=tokenizer.encode(examples[0].source, max_length=args.max_source_length, padding='max_length', truncation=True))

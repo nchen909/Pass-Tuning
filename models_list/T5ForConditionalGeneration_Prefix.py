@@ -22,7 +22,7 @@ class T5ForConditionalGeneration_Prefix(T5ForConditionalGeneration):
             if self.args.model_name in ['t5','codet5']:
                 embeddings_weight = self.shared.weight
             elif self.args.model_name in ['bart','plbart']:
-                embeddings_weight = self.shared.weight
+                embeddings_weight = self.model.shared.weight
             else:
                 embeddings_weight = self.decoder.embeddings.word_embeddings.weight
             if self.args.fix_model_param:
@@ -47,8 +47,8 @@ class T5ForConditionalGeneration_Prefix(T5ForConditionalGeneration):
             else:
                 self.dropout = torch.nn.Dropout(config.hidden_dropout_prob)
     def get_prompt(self, batch_size, is_generate=False):
-        if is_generate:
-            batch_size = batch_size // self.args.beam_size
+        # if is_generate:
+        #     batch_size = batch_size // self.args.beam_size
         code_prefix_tokens = self.code_prefix_tokens.unsqueeze(0).expand(batch_size, -1)
         code_prefix_matrix = self.code_prefix_matrix.unsqueeze(0).expand(batch_size, -1, -1)
         past_key_values = self.code_prefix(code_prefix_tokens, code_prefix_matrix)
@@ -57,18 +57,20 @@ class T5ForConditionalGeneration_Prefix(T5ForConditionalGeneration):
         past_key_values = past_key_values.view(
             batch_size, #1 (8)
             self.pre_seq_len, #3 (seq_len)512
-            self.n_layer * 2, #0 (2)
+            self.n_layer * 2, #0 (12*2)
             self.n_head, #2 (12)
             self.n_embd #4 (64)
         ).contiguous()#注意这里加了contiguous()!
 
-        if is_generate:
-            # past_key_values = past_key_values.repeat(self.args.beam_size,1,1,1,1)
-            past_key_values = past_key_values.index_select(0,torch.LongTensor([i for i in range(batch_size) for _ in range(self.args.beam_size)]).to(past_key_values.device))
+        # if is_generate:
+        #     # past_key_values = past_key_values.repeat(self.args.beam_size,1,1,1,1) #kvkvkvkvkvkv
+        #     past_key_values = past_key_values.index_select(0,torch.LongTensor([i for i in range(batch_size) for _ in range(self.args.beam_size)]).to(past_key_values.device)) #kkkkkkkkkkvvvvvvvvvv
 
         past_key_values = self.dropout(past_key_values)
         if self.args.model_name in ['t5','codet5']:
             past_key_values = past_key_values.permute([2, 0, 3, 1, 4]).contiguous().split(4)
+            # self_attn_past_key_value = past_key_value[:2]
+            # cross_attn_past_key_value = past_key_value[2:]
         else:
             past_key_values = past_key_values.permute([2, 0, 3, 1, 4]).contiguous().split(2)
         return past_key_values

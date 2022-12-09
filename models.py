@@ -14,6 +14,8 @@ from models_list.T5ForConditionalGeneration_Prefix_2 import T5ForConditionalGene
 from models_list.PLBartForConditionalGeneration_Prefix import PLBartForConditionalGeneration_Prefix
 from models_list.Seq2Seq import Seq2Seq, Seq2Seq4UniXcoder_completion, Seq2Seq4UniXcoder_generation, Seq2Seq4UniXcoder_e2d
 from models_list.Classification_Model import Model4UniXcoder, CloneModel, DefectModel
+
+from models_list.prompt.modeling_t5 import T5ForConditionalGeneration_Code
 #import codecs
 #sys.stdout = codecs.getwriter("utf-8")(sys.stdout.detach())
 logger = logging.getLogger(__name__)
@@ -46,12 +48,20 @@ MODEL_CLASSES = {'roberta': (AutoConfig, AutoModel, AutoTokenizer),
                  'codet5': (AutoConfig, T5ForConditionalGeneration, AutoTokenizer),
                  'bart': (AutoConfig, BartForConditionalGeneration, AutoTokenizer),
                  'plbart':(AutoConfig, PLBartForConditionalGeneration, AutoTokenizer)}
+# MODEL_CLASSES_PLG = {'roberta': (AutoConfig, AutoModel, AutoTokenizer),
+#                  'codebert': (AutoConfig, AutoModel, AutoTokenizer),
+#                  'graphcodebert': (AutoConfig, AutoModel, AutoTokenizer),
+#                  'unixcoder':(AutoConfig, AutoModel, AutoTokenizer),
+#                  't5': (AutoConfig, T5ForConditionalGeneration_Prefix, AutoTokenizer),
+#                  'codet5': (AutoConfig, T5ForConditionalGeneration_Prefix, AutoTokenizer),
+#                  'bart': (AutoConfig, BartForConditionalGeneration, AutoTokenizer),
+#                  'plbart':(AutoConfig, PLBartForConditionalGeneration_Prefix, AutoTokenizer)}
 MODEL_CLASSES_PLG = {'roberta': (AutoConfig, AutoModel, AutoTokenizer),
                  'codebert': (AutoConfig, AutoModel, AutoTokenizer),
                  'graphcodebert': (AutoConfig, AutoModel, AutoTokenizer),
                  'unixcoder':(AutoConfig, AutoModel, AutoTokenizer),
                  't5': (AutoConfig, T5ForConditionalGeneration_Prefix, AutoTokenizer),
-                 'codet5': (AutoConfig, T5ForConditionalGeneration_Prefix, AutoTokenizer),
+                 'codet5': (AutoConfig, T5ForConditionalGeneration_Code, AutoTokenizer),
                  'bart': (AutoConfig, BartForConditionalGeneration, AutoTokenizer),
                  'plbart':(AutoConfig, PLBartForConditionalGeneration_Prefix, AutoTokenizer)}
 # MODEL_CLASSES = {'roberta': (AutoConfig, AutoModel, AutoTokenizer),
@@ -114,10 +124,15 @@ def bulid_or_load_gen_model(args):
                         sos_id=tokenizer.convert_tokens_to_ids(["<mask0>"])[0],eos_id=tokenizer.sep_token_id)
             
     elif args.model_name in ['t5', 'codet5','bart','plbart']:
-        model = model_class.from_pretrained(checkpoint, output_attentions=True,args=args,tokenizer=tokenizer)
+        model = model_class.from_pretrained(checkpoint, output_attentions=True, args=args, tokenizer=tokenizer)
     if args.prefix_tuning:
-        logger.info("Finish loading model [%s] parameters from %s", get_model_size(
-            model.code_prefix.gat_layer), args.model_name)
+        if args.model_name not in ['unixcoder']:
+            try:
+                logger.info("Finish loading model [%s] parameters from %s", get_model_size(
+                    model.code_prefix.gat_layer), args.model_name)
+            except:
+                logger.info("Finish loading model [%s] parameters from %s", get_model_size(
+                    model), args.model_name)
     else:
         logger.info("Finish loading model [%s] parameters from %s", get_model_size(
             model), args.model_name)
