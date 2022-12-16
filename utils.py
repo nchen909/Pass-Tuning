@@ -15,7 +15,7 @@ from io import StringIO
 import tokenize
 from functools import partial
 from torch.utils.data import DataLoader, Dataset, SequentialSampler, RandomSampler,TensorDataset
-from prefixcode import PrefixCode
+from GraphMetadata import GraphMetadata
 import multiprocessing
 logger = logging.getLogger(__name__)
 
@@ -546,7 +546,13 @@ def load_and_cache_gen_data(args, filename, pool, tokenizer, split_tag, only_src
 #     return examples_data_dict
 
 
-def load_prefix_code(args, tokenizer):
+def get_graph_metadata(args, tokenizer):
+    '''
+    read prefix code from args.prefix_dir
+    load to examples(raw code) and data(after encode to ids)
+    GraphMetadata convert it to token_ids and distance_list
+    return token_ids and distance_list for GNN init
+    '''
     filename = get_filenames(
                 args.prefix_dir, args.task, args.sub_task, 'prefix')
     # examples, data = load_and_cache_clone_data(args, filename, pool, tokenizer, 'train') 
@@ -562,7 +568,7 @@ def load_prefix_code(args, tokenizer):
             examples=[CloneExample(examples)]
             feature= CloneInputFeatures(example_id=1,source_ids=tokenizer.encode(examples[0].source, max_length=args.max_source_length, padding='max_length', truncation=True))
             data= torch.tensor([feature.source_ids], dtype=torch.long)
-            prefix_code=PrefixCode(args, examples, data, 'java')
+            graphmetadata=GraphMetadata(args, examples, data, 'java')
     elif args.task == 'defect':
         with open(filename, encoding="utf-8") as f:
             line = f.readline().strip()
@@ -572,7 +578,7 @@ def load_prefix_code(args, tokenizer):
             examples=[Example(1,examples)]
             feature= DefectInputFeatures(example_id=1,source_ids=tokenizer.encode(examples[0].source, max_length=args.max_source_length, padding='max_length', truncation=True))
             data= torch.tensor([feature.source_ids], dtype=torch.long)
-            prefix_code=PrefixCode(args, examples, data, 'c')
+            graphmetadata=GraphMetadata(args, examples, data, 'c')
             # if args.prefix_token_level == 'token':
             #     tokens_ids=tokenizer.encode(js['func'], max_length=args.gnn_token_num, padding='max_length', truncation=True)
             #     print(tokens_list)
@@ -596,14 +602,14 @@ def load_prefix_code(args, tokenizer):
     # )
             feature= InputFeatures(example_id=1,source_ids=tokenizer.encode(examples[0].source, max_length=args.max_source_length, padding='max_length', truncation=True))
             data= torch.tensor([feature.source_ids], dtype=torch.long)
-            prefix_code=PrefixCode(args, examples, data, 'java')
+            graphmetadata=GraphMetadata(args, examples, data, 'java')
     elif args.task == 'refine':
         with open(filename, encoding="utf-8") as f:
             line = f.readline().strip()
             examples=[Example(1,line)]
             feature= InputFeatures(example_id=1,source_ids=tokenizer.encode(examples[0].source, max_length=args.max_source_length, padding='max_length', truncation=True))
             data= torch.tensor([feature.source_ids], dtype=torch.long)
-            prefix_code=PrefixCode(args, examples, data, 'java')
+            graphmetadata=GraphMetadata(args, examples, data, 'java')
     elif args.task == 'translate':
         with open(filename, encoding="utf-8") as f:
             line = f.readline().strip()
@@ -611,9 +617,9 @@ def load_prefix_code(args, tokenizer):
             feature= InputFeatures(example_id=1,source_ids=tokenizer.encode(examples[0].source, max_length=args.max_source_length, padding='max_length', truncation=True))
             data= torch.tensor([feature.source_ids], dtype=torch.long)
             if args.sub_task == 'java-cs':
-                prefix_code=PrefixCode(args, examples, data, 'c_sharp')
+                graphmetadata=GraphMetadata(args, examples, data, 'c_sharp')
             else:
-                prefix_code=PrefixCode(args, examples, data, 'java')
+                graphmetadata=GraphMetadata(args, examples, data, 'java')
     elif args.task == 'summarize':
         with open(filename, encoding="utf-8") as f:
             line = f.readline().strip()
@@ -625,11 +631,11 @@ def load_prefix_code(args, tokenizer):
             examples=[Example(1,examples)]
             feature= InputFeatures(example_id=1,source_ids=tokenizer.encode(examples[0].source, max_length=args.max_source_length, padding='max_length', truncation=True))
             data= torch.tensor([feature.source_ids], dtype=torch.long)
-            prefix_code=PrefixCode(args, examples, data, args.sub_task)
+            graphmetadata=GraphMetadata(args, examples, data, args.sub_task)
     
-    ast_list, sast_list, tokens_list, tokens_type_list, leaves =prefix_code.get_ast_and_token(prefix_code.examples, prefix_code.parser, prefix_code.lang)
+    ast_list, sast_list, tokens_list, tokens_type_list, leaves =graphmetadata.get_ast_and_token(graphmetadata.examples, graphmetadata.parser, graphmetadata.lang)
     tokens_ids=tokenizer.convert_tokens_to_ids(tokens_list[0].values())
-    distance_list=prefix_code.get_token_distance(args, leaves, ast_list, sast_list, 'shortest_path_length')[0]
+    distance_list=graphmetadata.get_token_distance(args, leaves, ast_list, sast_list, 'shortest_path_length')[0]
     assert len(tokens_ids)==distance_list.shape[0]
     if len(tokens_ids)>=args.gnn_token_num:
         return tokens_ids[:args.gnn_token_num], distance_list[:args.gnn_token_num,:args.gnn_token_num]
@@ -649,7 +655,7 @@ def load_prefix_code(args, tokenizer):
 
 
 
-def get_distance(args,tokenizer):
+def get_distance(args, tokenizer):
     pool=multiprocessing.Pool(args.cpu_count)
     examples, data = load_and_cache_clone_data(args, args.train_filename, pool, tokenizer, 'train') 
 

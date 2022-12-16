@@ -45,7 +45,7 @@ class Activation_Function_Class(nn.Module):
 
 class Adapter(nn.Module):
     """
-    Implementation of a single Adapter block for T5.  # TODO: Chen
+    Implementation of a single Adapter block for T5.  # modified
     """
 
     def __init__(

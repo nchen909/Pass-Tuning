@@ -7,8 +7,8 @@ from transformers import AutoTokenizer, AutoModel, AutoConfig, T5ForConditionalG
 from transformers import PLBartForConditionalGeneration
 import logging
 import sys
-from code_prefix import CodePrefix
-from utils import load_prefix_code
+from code_prefix import CodeGraphPrefix
+from utils import get_graph_metadata
 
 # https://github.com/microsoft/CodeBERT/blob/master/CodeBERT/code2nl/model.py
 class Seq2Seq(nn.Module):
@@ -55,7 +55,7 @@ class Seq2Seq(nn.Module):
             if self.args.fix_model_param:
                 for param in self.encoder.parameters():
                     param.requires_grad = False
-            self.code_prefix_tokens, self.code_prefix_matrix = load_prefix_code(self.args,self.tokenizer)
+            self.code_prefix_tokens, self.code_prefix_matrix = get_graph_metadata(self.args,self.tokenizer)
             self.code_prefix_tokens = torch.tensor(self.code_prefix_tokens, dtype=torch.long).cuda()
             self.code_prefix_matrix = torch.tensor(self.code_prefix_matrix, dtype=torch.long).cuda()
             self.pre_seq_len = self.args.max_source_length
@@ -64,7 +64,7 @@ class Seq2Seq(nn.Module):
             self.n_head = config.num_attention_heads
             self.n_embd = config.hidden_size // config.num_attention_heads
             # add prefix encoder
-            self.code_prefix = CodePrefix(self.config, embeddings_weight,self.args)
+            self.code_prefix = CodeGraphPrefix(self.config, embeddings_weight,self.args)
             if self.args.model_name in ['t5','codet5']:
                 self.dropout = torch.nn.Dropout(config.dropout_rate)
             elif self.args.model_name in ['bart','plbart']:
@@ -203,11 +203,13 @@ class Seq2Seq4UniXcoder_e2d(nn.Module):
         * `sos_id`- start of symbol ids in target for beam search.
         * `eos_id`- end of symbol ids in target for beam search. 
     """
-    def __init__(self, encoder,decoder, config, beam_size=None, max_length=None, sos_id=None, eos_id=None):
+    def __init__(self, encoder,decoder, config, tokenizer, args, beam_size=None, max_length=None, sos_id=None, eos_id=None):
         super(Seq2Seq4UniXcoder_e2d, self).__init__()
         self.encoder = encoder
         self.decoder=decoder
         self.config=config
+        self.tokenizer = tokenizer
+        self.args = args
         self.register_buffer(
             "bias", torch.tril(torch.ones((1024, 1024), dtype=torch.uint8)).view(1,1024, 1024)
         )
@@ -219,15 +221,79 @@ class Seq2Seq4UniXcoder_e2d(nn.Module):
         self.beam_size = beam_size
         self.max_length = max_length
         self.sos_id = sos_id
-        self.eos_id = eos_id       
-        
+        self.eos_id = eos_id
+        if self.args.prefix_tuning:
+            if self.args.model_name in ['t5','codet5']:
+                embeddings_weight = self.encoder.shared.weight
+            elif self.args.model_name in ['bart','plbart']:
+                embeddings_weight = self.encoder.model.shared.weight
+            else:
+                embeddings_weight = self.encoder.embeddings.word_embeddings.weight
+            if self.args.fix_model_param:
+                for param in self.encoder.parameters():
+                    param.requires_grad = False
+            self.code_prefix_tokens, self.code_prefix_matrix = get_graph_metadata(self.args,self.tokenizer)
+            self.code_prefix_tokens = torch.tensor(self.code_prefix_tokens, dtype=torch.long).cuda()
+            self.code_prefix_matrix = torch.tensor(self.code_prefix_matrix, dtype=torch.long).cuda()
+            self.pre_seq_len = self.args.max_source_length
+
+            self.n_layer = config.num_hidden_layers
+            self.n_head = config.num_attention_heads
+            self.n_embd = config.hidden_size // config.num_attention_heads
+            # add prefix encoder
+            self.code_prefix = CodeGraphPrefix(self.config, embeddings_weight,self.args)
+            if self.args.model_name in ['t5','codet5']:
+                self.dropout = torch.nn.Dropout(config.dropout_rate)
+            elif self.args.model_name in ['bart','plbart']:
+                self.dropout = torch.nn.Dropout(config.dropout)
+            else:
+                self.dropout = torch.nn.Dropout(config.hidden_dropout_prob)     
+    
+    def get_prompt(self, batch_size):
+        code_prefix_tokens = self.code_prefix_tokens.unsqueeze(0).expand(batch_size, -1)
+        code_prefix_matrix = self.code_prefix_matrix.unsqueeze(0).expand(batch_size, -1, -1)
+        past_key_values = self.code_prefix(code_prefix_tokens, code_prefix_matrix)
+        # bsz, seqlen, _ = past_key_values.shape
+
+        past_key_values = past_key_values.view(
+            batch_size, #1 (8)
+            self.pre_seq_len, #3 (seq_len)512
+            self.n_layer * 2, #0 (2)
+            self.n_head, #2 (12)
+            self.n_embd #4 (64)
+        ).contiguous()#注意这里加了contiguous()!
+
+        past_key_values = self.dropout(past_key_values)
+        if self.args.model_name in ['t5','codet5']:
+            past_key_values = past_key_values.permute([2, 0, 3, 1, 4]).contiguous().split(4)
+        else:
+            past_key_values = past_key_values.permute([2, 0, 3, 1, 4]).contiguous().split(2)
+        return past_key_values
     def forward(self, source_ids, target_ids=None):   
         if target_ids is None:
             return self.generate(source_ids)
         
         mask = source_ids.ne(1)[:,None,:]*source_ids.ne(1)[:,:,None]
         #[batch,256,256] case: upper left 70*70(source) true other false
-        encoder_output = self.encoder(source_ids,attention_mask=mask,use_cache=True)
+
+        if self.args.prefix_tuning:
+            attention_mask = mask
+            position_ids = torch.arange(1,source_ids.size(1)+1, dtype=torch.long, device=source_ids.device).expand_as(source_ids).cuda()
+            position_ids = position_ids*attention_mask
+            batch_size = attention_mask.shape[0]
+            past_key_values = self.get_prompt(batch_size=batch_size) # add
+            prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len,dtype=attention_mask.dtype).to(self.encoder.device)
+            attention_mask = torch.cat((prefix_attention_mask, attention_mask), dim=1)
+            # encoder_source_ids = torch.cat((self.code_prefix_tokens.expand_as(prefix_attention_mask),source_ids),dim=1)
+            encoder_output = self.encoder(
+                input_ids=source_ids,
+                position_ids=position_ids, 
+                attention_mask=attention_mask,
+                use_cache=True,
+                past_key_values=past_key_values#tuple((i.contiguous() for i in past_key_values)) # [2,16,12,6,64]
+                )
+        else:
+            encoder_output = self.encoder(source_ids,attention_mask=mask,use_cache=True)
         ids = torch.cat((source_ids,target_ids),-1)
         #[batch,384] case: total source70 not 1 and target 15 not 1=85
         mask = self.bias[:,source_ids.size(-1):ids.size(-1),:ids.size(-1)].bool()
@@ -250,7 +316,24 @@ class Seq2Seq4UniXcoder_e2d(nn.Module):
     
     def generate(self, source_ids):
         mask = source_ids.ne(1)[:,None,:]*source_ids.ne(1)[:,:,None]
-        encoder_output = self.encoder(source_ids,attention_mask=mask,use_cache=True)        
+        if self.args.prefix_tuning:
+            attention_mask = mask
+            position_ids = torch.arange(1,source_ids.size(1)+1, dtype=torch.long, device=source_ids.device).expand_as(source_ids).cuda()
+            position_ids = position_ids*attention_mask
+            batch_size = attention_mask.shape[0]
+            past_key_values = self.get_prompt(batch_size=batch_size) # add
+            prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len,dtype=attention_mask.dtype).to(self.encoder.device)
+            attention_mask = torch.cat((prefix_attention_mask, attention_mask), dim=1)
+            # encoder_source_ids = torch.cat((self.code_prefix_tokens.expand_as(prefix_attention_mask),source_ids),dim=1)
+            encoder_output = self.encoder(
+                input_ids=source_ids,
+                position_ids=position_ids, 
+                attention_mask=attention_mask,
+                use_cache=True,
+                past_key_values=past_key_values#tuple((i.contiguous() for i in past_key_values)) # [2,16,12,6,64]
+                )
+        else:
+            encoder_output = self.encoder(source_ids,attention_mask=mask,use_cache=True)      
         preds = []       
         zero = torch.cuda.LongTensor(1).fill_(0)   
         source_len = list(source_ids.ne(1).sum(-1).cpu().numpy())
@@ -295,11 +378,13 @@ class Seq2Seq4UniXcoder_completion(nn.Module):
         * `sos_id`- start of symbol ids in target for beam search.
         * `eos_id`- end of symbol ids in target for beam search. 
     """
-    def __init__(self, encoder,decoder,config,beam_size=None,max_length=None,sos_id=None,eos_id=None):
+    def __init__(self, encoder,decoder,config, tokenizer, args,beam_size=None,max_length=None,sos_id=None,eos_id=None):
         super(Seq2Seq4UniXcoder_completion, self).__init__()
         self.encoder = encoder
         self.decoder=decoder
         self.config=config
+        self.tokenizer = tokenizer
+        self.args = args
         self.register_buffer(
             "bias", torch.tril(torch.ones((1024, 1024), dtype=torch.uint8)).view(1,1024, 1024)
         )
@@ -311,8 +396,54 @@ class Seq2Seq4UniXcoder_completion(nn.Module):
         self.max_length=max_length
         self.sos_id=sos_id
         self.eos_id=eos_id
+        if self.args.prefix_tuning:
+            if self.args.model_name in ['t5','codet5']:
+                embeddings_weight = self.encoder.shared.weight
+            elif self.args.model_name in ['bart','plbart']:
+                embeddings_weight = self.encoder.model.shared.weight
+            else:
+                embeddings_weight = self.encoder.embeddings.word_embeddings.weight
+            if self.args.fix_model_param:
+                for param in self.encoder.parameters():
+                    param.requires_grad = False
+            self.code_prefix_tokens, self.code_prefix_matrix = get_graph_metadata(self.args,self.tokenizer)
+            self.code_prefix_tokens = torch.tensor(self.code_prefix_tokens, dtype=torch.long).cuda()
+            self.code_prefix_matrix = torch.tensor(self.code_prefix_matrix, dtype=torch.long).cuda()
+            self.pre_seq_len = self.args.max_source_length
+
+            self.n_layer = config.num_hidden_layers
+            self.n_head = config.num_attention_heads
+            self.n_embd = config.hidden_size // config.num_attention_heads
+            # add prefix encoder
+            self.code_prefix = CodeGraphPrefix(self.config, embeddings_weight,self.args)
+            if self.args.model_name in ['t5','codet5']:
+                self.dropout = torch.nn.Dropout(config.dropout_rate)
+            elif self.args.model_name in ['bart','plbart']:
+                self.dropout = torch.nn.Dropout(config.dropout)
+            else:
+                self.dropout = torch.nn.Dropout(config.hidden_dropout_prob)
         
-                  
+    def get_prompt(self, batch_size):
+        code_prefix_tokens = self.code_prefix_tokens.unsqueeze(0).expand(batch_size, -1)
+        code_prefix_matrix = self.code_prefix_matrix.unsqueeze(0).expand(batch_size, -1, -1)
+        past_key_values = self.code_prefix(code_prefix_tokens, code_prefix_matrix)
+        # bsz, seqlen, _ = past_key_values.shape
+
+        past_key_values = past_key_values.view(
+            batch_size, #1 (8)
+            self.pre_seq_len, #3 (seq_len)512
+            self.n_layer * 2, #0 (2)
+            self.n_head, #2 (12)
+            self.n_embd #4 (64)
+        ).contiguous()#注意这里加了contiguous()!
+
+        past_key_values = self.dropout(past_key_values)
+        if self.args.model_name in ['t5','codet5']:
+            past_key_values = past_key_values.permute([2, 0, 3, 1, 4]).contiguous().split(4)
+        else:
+            past_key_values = past_key_values.permute([2, 0, 3, 1, 4]).contiguous().split(2)
+        return past_key_values
+
     def tie_weights(self):
         """ Make sure we are sharing the input and output embeddings.
             Export to TorchScript can't handle parameter sharing so we are cloning them instead.
@@ -325,7 +456,24 @@ class Seq2Seq4UniXcoder_completion(nn.Module):
         source_ids = source_ids[:,:max_length]        
         if train:  
             length = source_ids.size(-1)
-            out = self.decoder(source_ids,attention_mask=self.bias[:,:length,:length]).last_hidden_state
+            if self.args.prefix_tuning:
+                attention_mask = self.bias[:,:length,:length]
+                position_ids = torch.arange(1,source_ids.size(1)+1, dtype=torch.long, device=source_ids.device).expand_as(source_ids).cuda()
+                position_ids = position_ids*attention_mask
+                batch_size = attention_mask.shape[0]
+                past_key_values = self.get_prompt(batch_size=batch_size) # add
+                prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len,dtype=attention_mask.dtype).to(self.encoder.device)
+                attention_mask = torch.cat((prefix_attention_mask, attention_mask), dim=1)
+                # encoder_source_ids = torch.cat((self.code_prefix_tokens.expand_as(prefix_attention_mask),source_ids),dim=1)
+                out = self.decoder(
+                    input_ids=source_ids,
+                    position_ids=position_ids, 
+                    attention_mask=attention_mask,
+                    use_cache=True,
+                    past_key_values=past_key_values#tuple((i.contiguous() for i in past_key_values)) # [2,16,12,6,64]
+                    ).last_hidden_state
+            else:
+                out = self.decoder(source_ids,attention_mask=self.bias[:,:length,:length],use_cache=True).last_hidden_state
             lm_logits = self.lm_head(out)
             # Shift so that tokens < n predict n
             active_loss = source_ids[..., 1:].ne(1).view(-1)
@@ -344,7 +492,23 @@ class Seq2Seq4UniXcoder_completion(nn.Module):
             zero=torch.cuda.LongTensor(1).fill_(0)   
             source_len = list(source_ids.ne(1).sum(-1).cpu().numpy())
             length = source_ids.size(-1)
-            encoder_output = self.decoder(source_ids,attention_mask=self.bias[:,:length,:length])
+            if self.args.prefix_tuning:
+                attention_mask = self.bias[:,:length,:length]
+                position_ids = torch.arange(1,source_ids.size(1)+1, dtype=torch.long, device=source_ids.device).expand_as(source_ids).cuda()
+                position_ids = position_ids*attention_mask
+                batch_size = attention_mask.shape[0]
+                past_key_values = self.get_prompt(batch_size=batch_size) # add
+                prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len,dtype=attention_mask.dtype).to(self.encoder.device)
+                attention_mask = torch.cat((prefix_attention_mask, attention_mask), dim=1)
+                # encoder_source_ids = torch.cat((self.code_prefix_tokens.expand_as(prefix_attention_mask),source_ids),dim=1)
+                encoder_output = self.decoder(
+                    input_ids=source_ids,
+                    position_ids=position_ids, 
+                    attention_mask=attention_mask,
+                    past_key_values=past_key_values#tuple((i.contiguous() for i in past_key_values)) # [2,16,12,6,64]
+                    )
+            else:
+                encoder_output = self.decoder(source_ids,attention_mask=self.bias[:,:length,:length])
             for i in range(source_ids.shape[0]):
                 context=[[x[i:i+1,:,:source_len[i]].repeat(self.beam_size,1,1,1) for x in y] 
                          for y in encoder_output.past_key_values]
@@ -392,11 +556,13 @@ class Seq2Seq4UniXcoder_generation(nn.Module):
         * `sos_id`- start of symbol ids in target for beam search.
         * `eos_id`- end of symbol ids in target for beam search. 
     """
-    def __init__(self, encoder,decoder, config, beam_size=None, max_length=None, sos_id=None, eos_id=None):
+    def __init__(self, encoder,decoder, config, tokenizer, args, beam_size=None, max_length=None, sos_id=None, eos_id=None):
         super(Seq2Seq4UniXcoder_generation, self).__init__()
         self.encoder = encoder
         self.decoder=decoder
         self.config=config
+        self.tokenizer = tokenizer
+        self.args = args
         self.register_buffer(
             "bias", torch.tril(torch.ones((1024, 1024), dtype=torch.uint8)).view(1,1024, 1024)
         )
@@ -408,14 +574,78 @@ class Seq2Seq4UniXcoder_generation(nn.Module):
         self.beam_size = beam_size
         self.max_length = max_length
         self.sos_id = sos_id
-        self.eos_id = eos_id       
-        
+        self.eos_id = eos_id
+        if self.args.prefix_tuning:
+            if self.args.model_name in ['t5','codet5']:
+                embeddings_weight = self.encoder.shared.weight
+            elif self.args.model_name in ['bart','plbart']:
+                embeddings_weight = self.encoder.model.shared.weight
+            else:
+                embeddings_weight = self.encoder.embeddings.word_embeddings.weight
+            if self.args.fix_model_param:
+                for param in self.encoder.parameters():
+                    param.requires_grad = False
+            self.code_prefix_tokens, self.code_prefix_matrix = get_graph_metadata(self.args,self.tokenizer)
+            self.code_prefix_tokens = torch.tensor(self.code_prefix_tokens, dtype=torch.long).cuda()
+            self.code_prefix_matrix = torch.tensor(self.code_prefix_matrix, dtype=torch.long).cuda()
+            self.pre_seq_len = self.args.max_source_length
+
+            self.n_layer = config.num_hidden_layers
+            self.n_head = config.num_attention_heads
+            self.n_embd = config.hidden_size // config.num_attention_heads
+            # add prefix encoder
+            self.code_prefix = CodeGraphPrefix(self.config, embeddings_weight,self.args)
+            if self.args.model_name in ['t5','codet5']:
+                self.dropout = torch.nn.Dropout(config.dropout_rate)
+            elif self.args.model_name in ['bart','plbart']:
+                self.dropout = torch.nn.Dropout(config.dropout)
+            else:
+                self.dropout = torch.nn.Dropout(config.hidden_dropout_prob)  
+
+    def get_prompt(self, batch_size):
+        code_prefix_tokens = self.code_prefix_tokens.unsqueeze(0).expand(batch_size, -1)
+        code_prefix_matrix = self.code_prefix_matrix.unsqueeze(0).expand(batch_size, -1, -1)
+        past_key_values = self.code_prefix(code_prefix_tokens, code_prefix_matrix)
+        # bsz, seqlen, _ = past_key_values.shape
+
+        past_key_values = past_key_values.view(
+            batch_size, #1 (8)
+            self.pre_seq_len, #3 (seq_len)512
+            self.n_layer * 2, #0 (2)
+            self.n_head, #2 (12)
+            self.n_embd #4 (64)
+        ).contiguous()#注意这里加了contiguous()!
+
+        past_key_values = self.dropout(past_key_values)
+        if self.args.model_name in ['t5','codet5']:
+            past_key_values = past_key_values.permute([2, 0, 3, 1, 4]).contiguous().split(4)
+        else:
+            past_key_values = past_key_values.permute([2, 0, 3, 1, 4]).contiguous().split(2)
+        return past_key_values
+
     def forward(self, source_ids, target_ids=None):   
         if target_ids is None:
             return self.generate(source_ids)
         
         mask = source_ids.ne(1)[:,None,:]*source_ids.ne(1)[:,:,None]
-        encoder_output = self.encoder(source_ids,attention_mask=mask,use_cache=True)  
+        if self.args.prefix_tuning:
+            attention_mask = mask
+            position_ids = torch.arange(1,source_ids.size(1)+1, dtype=torch.long, device=source_ids.device).expand_as(source_ids).cuda()
+            position_ids = position_ids*attention_mask
+            batch_size = attention_mask.shape[0]
+            past_key_values = self.get_prompt(batch_size=batch_size) # add
+            prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len,dtype=attention_mask.dtype).to(self.encoder.device)
+            attention_mask = torch.cat((prefix_attention_mask, attention_mask), dim=1)
+            # encoder_source_ids = torch.cat((self.code_prefix_tokens.expand_as(prefix_attention_mask),source_ids),dim=1)
+            encoder_output = self.encoder(
+                input_ids=source_ids,
+                position_ids=position_ids, 
+                attention_mask=attention_mask,
+                use_cache=True,
+                past_key_values=past_key_values#tuple((i.contiguous() for i in past_key_values)) # [2,16,12,6,64]
+                )
+        else:
+            encoder_output = self.encoder(source_ids,attention_mask=mask,use_cache=True)
         ids = torch.cat((source_ids,target_ids),-1)
         mask = self.bias[:,source_ids.size(-1):ids.size(-1),:ids.size(-1)].bool()
         mask = mask & ids[:,None,:].ne(1)
@@ -436,7 +666,24 @@ class Seq2Seq4UniXcoder_generation(nn.Module):
     
     def generate(self, source_ids):
         mask = source_ids.ne(1)[:,None,:]*source_ids.ne(1)[:,:,None]
-        encoder_output = self.encoder(source_ids,attention_mask=mask,use_cache=True)        
+        if self.args.prefix_tuning:
+            attention_mask = mask
+            position_ids = torch.arange(1,source_ids.size(1)+1, dtype=torch.long, device=source_ids.device).expand_as(source_ids).cuda()
+            position_ids = position_ids*attention_mask
+            batch_size = attention_mask.shape[0]
+            past_key_values = self.get_prompt(batch_size=batch_size) # add
+            prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len,dtype=attention_mask.dtype).to(self.encoder.device)
+            attention_mask = torch.cat((prefix_attention_mask, attention_mask), dim=1)
+            # encoder_source_ids = torch.cat((self.code_prefix_tokens.expand_as(prefix_attention_mask),source_ids),dim=1)
+            encoder_output = self.encoder(
+                input_ids=source_ids,
+                position_ids=position_ids, 
+                attention_mask=attention_mask,
+                use_cache=True,
+                past_key_values=past_key_values#tuple((i.contiguous() for i in past_key_values)) # [2,16,12,6,64]
+                )
+        else:
+            encoder_output = self.encoder(source_ids,attention_mask=mask,use_cache=True)       
         preds = []       
         zero = torch.cuda.LongTensor(1).fill_(0)   
         source_len = list(source_ids.ne(1).sum(-1).cpu().numpy())

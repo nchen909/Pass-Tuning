@@ -14,8 +14,8 @@ class Model(PushToHubFriendlyModel):
 
         """The prefix-tuning code"""
 
-        self.preseqlen = args.prefix_tuning.prefix_sequence_length
-        self.mid_dim = args.prefix_tuning.mid_dim
+        self.preseqlen = args.max_source_length
+        self.mid_dim = args.gnn_token_num
 
         print("prefix-tuning sequence length is {}.".format(self.preseqlen))
 
@@ -41,9 +41,9 @@ class Model(PushToHubFriendlyModel):
         else:
             raise ValueError("Other models are not supported yet!")
 
-        if args.special_tokens:
-            self.tokenizer.add_tokens([v for k, v in args.special_tokens])
-            self.pretrain_model.resize_token_embeddings(len(self.tokenizer))
+        # if args.special_tokens:
+        #     self.tokenizer.add_tokens([v for k, v in args.special_tokens])
+        #     self.pretrain_model.resize_token_embeddings(len(self.tokenizer))
 
         # Prefix related.
         self.register_buffer('input_tokens', torch.arange(self.preseqlen).long())
@@ -54,7 +54,7 @@ class Model(PushToHubFriendlyModel):
             nn.Tanh(),
             nn.Linear(self.mid_dim, self.match_n_layer * 2 * self.match_n_head * self.match_n_embd),
         )
-        if self.args.model.knowledge_usage == 'separate':
+        if self.args.knowledge_usage == 'separate':
             self.knowledge_trans = nn.Sequential(
                 nn.Linear(self.n_embd, self.mid_dim),
                 nn.Tanh(),
@@ -67,7 +67,7 @@ class Model(PushToHubFriendlyModel):
             nn.Tanh(),
             nn.Linear(self.mid_dim, self.match_n_layer * 2 * self.match_n_head * self.match_n_embd),
         )
-        if self.args.model.knowledge_usage == 'separate':
+        if self.args.knowledge_usage == 'separate':
             self.knowledge_trans_enc = nn.Sequential(
                 nn.Linear(self.n_embd, self.mid_dim),
                 nn.Tanh(),
@@ -82,19 +82,19 @@ class Model(PushToHubFriendlyModel):
         )
 
         # Knowledge prompt.
-        if self.args.model.knowledge_usage == 'separate':
+        if self.args.knowledge_usage == 'separate':
             self.knowledge_trans_dec = nn.Sequential(
                 nn.Linear(self.n_embd, self.mid_dim),
                 nn.Tanh(),
                 nn.Linear(self.mid_dim, self.match_n_layer * 2 * self.match_n_head * self.match_n_embd),
             )
 
-        self.dropout = nn.Dropout(args.prefix_tuning.prefix_dropout)
+        self.dropout = nn.Dropout(args.prefix_dropout)
 
-        if self.args.model.freeze_plm:
+        if self.args.fix_model_param:
             for param in self.pretrain_model.parameters():
                 param.requires_grad = False
-        if self.args.model.freeze_prefix:
+        if not self.args.prefix_tuning:
             for param in self.wte.parameters():
                 param.requires_grad = False
             for param in self.control_trans.parameters():
@@ -199,7 +199,7 @@ class Model(PushToHubFriendlyModel):
         return result
 
     def get_description_representation(self, kwargs):
-        if self.args.model.use_description and self.args.model.map_description:
+        if self.args.use_description and self.args.map_description:
             description_input_ids = kwargs.pop("description_input_ids")
             description_attention_mask = kwargs.pop("description_attention_mask")
             if self.args.bert.location in ["t5-small", "t5-base", "t5-large", "t5-3b", "t5-11b"]:
@@ -222,7 +222,7 @@ class Model(PushToHubFriendlyModel):
         return description
 
     def get_knowledge_representation(self, kwargs):
-        if self.args.model.knowledge_usage == 'separate':
+        if self.args.knowledge_usage == 'separate':
             knowledge_input_ids = kwargs.pop("knowledge_input_ids", None)
             knowledge_attention_mask = kwargs.pop("knowledge_attention_mask", None)
             if self.args.bert.location in ["t5-small", "t5-base", "t5-large", "t5-3b", "t5-11b"]:
@@ -239,7 +239,7 @@ class Model(PushToHubFriendlyModel):
                 knowledge = knowledge_outputs.last_hidden_state
             else:
                 raise ValueError()
-        elif self.args.model.knowledge_usage == 'concatenate':
+        elif self.args.knowledge_usage == 'concatenate':
             knowledge = None
         else:
             raise ValueError()

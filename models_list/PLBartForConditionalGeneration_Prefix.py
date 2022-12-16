@@ -13,8 +13,8 @@ from transformers.modeling_outputs import (
     Seq2SeqModelOutput,
     Seq2SeqSequenceClassifierOutput,
 )
-from utils import load_prefix_code
-from code_prefix import CodePrefix
+from utils import get_graph_metadata
+from code_prefix import CodeGraphPrefix
 
 # Copied from transformers.models.mbart.modeling_mbart.shift_tokens_right
 def shift_tokens_right(input_ids: torch.Tensor, pad_token_id: int):
@@ -54,7 +54,7 @@ class PLBartForConditionalGeneration_Prefix(PLBartForConditionalGeneration):
                     param.requires_grad = False
                 for param in self.model.decoder.parameters():
                     param.requires_grad = False
-            self.code_prefix_tokens, self.code_prefix_matrix = load_prefix_code(self.args,self.tokenizer)
+            self.code_prefix_tokens, self.code_prefix_matrix = get_graph_metadata(self.args,self.tokenizer)
             self.code_prefix_tokens = torch.tensor(self.code_prefix_tokens, dtype=torch.long).cuda()
             self.code_prefix_matrix = torch.tensor(self.code_prefix_matrix, dtype=torch.long).cuda()
             self.pre_seq_len = self.args.max_source_length
@@ -63,7 +63,7 @@ class PLBartForConditionalGeneration_Prefix(PLBartForConditionalGeneration):
             self.n_head = config.num_attention_heads
             self.n_embd = config.hidden_size // config.num_attention_heads
             # add prefix encoder
-            self.code_prefix = CodePrefix(self.config, embeddings_weight,self.args)
+            self.code_prefix = CodeGraphPrefix(self.config, embeddings_weight,self.args)
             if self.args.model_name in ['t5','codet5']:
                 self.dropout = torch.nn.Dropout(config.dropout_rate)
             elif self.args.model_name in ['bart','plbart']:

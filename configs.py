@@ -87,16 +87,34 @@ def add_args(parser):
     #                 help="whether to use upgraded ast")
     parser.add_argument('--few_shot',  default=-1, type=int,
                     help="use k shot, -1 for full data")
+
     parser.add_argument("--prefix_tuning", default=0, type=int,
                     help="parameter-efficient GNN prefix tuning, 0 for not tuning, 1 for tuning")
+    parser.add_argument("--adapter_tuning", default=0, type=int,
+                    help="parameter-efficient adapter tuning, 0 for not tuning, 1 for tuning")#only support codet5 currently
+    parser.add_argument("--bitfit", default=0, type=int,
+                    help="parameter-efficient bitfit, 0 for not tuning, 1 for tuning")
+    
+
     parser.add_argument("--prefix_dir", default='data_prefix', type=str,
-                        help="directory to score prefix_code.txt")
+                        help="directory to score graphmetadata.txt")
     parser.add_argument("--prefix_token_level", default='token', type=str,
                         help="how to parse initial prefix code, choose 'token' or 'subtoken' level of ids/init_dist_weight")
     parser.add_argument("--gnn_token_num", default=32, type=int,
                         help="number of tokens to use for gnn, must be divided with max_source_length in encoder2decoder with no remainder")
     parser.add_argument("--fix_model_param", default=1, type=int,
                     help="when prefix_tuning, fix model param or not ")
+    
+    parser.add_argument("--knowledge_usage", default='separate', type=str,
+                        help="for t5&bart, how knowledge prefix use: separate or concatenate")
+    parser.add_argument("--use_description", default=0, type=int,
+                    help="use_description or not ")
+    parser.add_argument("--concatenate_description", default=0, type=int,
+                    help="concatenate_description or not ")
+    parser.add_argument("--map_description", default=0, type=int,
+                    help="map_description or not ")
+    parser.add_argument("--prefix_dropout", default=0.0, type=float,
+                        help="prefix_dropout.")
     args = parser.parse_args()
     return args
 
@@ -204,7 +222,7 @@ def set_hyperparas(args):
                 args.batch_size = args.batch_size // 2 #4
             else:
                 args.batch_size = args.batch_size // 2
-        # args.batch_size = 2######################################################
+        # args.batch_size = 2#####################################################
         # args.batch_size = 128 if args.model_name not in ['t5', 'codet5'] else 16
         args.warmup_steps = 1000
         args.dev_batch_size = args.batch_size * 1 if not torch.cuda.is_available() else args.batch_size//torch.cuda.device_count()*1

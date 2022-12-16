@@ -170,7 +170,7 @@ class GAT(nn.Module):
         return F.log_softmax(x,dim=1)
 
 
-class CodePrefix(torch.nn.Module):
+class CodeGraphPrefix(torch.nn.Module):
     r'''
     The torch.nn model to encode the prefix
 

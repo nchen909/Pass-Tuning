@@ -151,7 +151,10 @@ def eval_ppl_epoch(args, eval_data, eval_examples, model, tokenizer):
             else:
                 outputs = model(input_ids=source_ids, attention_mask=source_mask,
                                 labels=target_ids, decoder_attention_mask=target_mask)
-                loss = outputs.loss
+                if isinstance(outputs,dict):
+                    loss=outputs['loss']
+                else:
+                    loss = outputs.loss
                 if args.n_gpu > 1:
                     loss = loss.mean()
                 eval_loss += loss.item()
@@ -383,8 +386,11 @@ def main():
                         outputs = model(input_ids=source_ids, attention_mask=source_mask,
                                         labels=target_ids, decoder_attention_mask=target_mask)
                         #attention =outputs.encoder_attentions
-                        loss = outputs.loss
-                    
+                        if isinstance(outputs,dict):
+                            loss=outputs['loss']
+                        else:
+                            loss = outputs.loss
+                        
                     
                     if args.n_gpu > 1:
                         loss = loss.mean()  # mean() to average on multi-gpu.

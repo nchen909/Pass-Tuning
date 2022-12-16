@@ -7,15 +7,17 @@ from transformers import AutoTokenizer, AutoModel, AutoConfig, T5ForConditionalG
 from transformers import PLBartForConditionalGeneration
 import logging
 import sys
-from code_prefix import CodePrefix
-from utils import load_prefix_code
+from code_prefix import CodeGraphPrefix
+from utils import get_graph_metadata
 from models_list.T5ForConditionalGeneration_Prefix import T5ForConditionalGeneration_Prefix
 from models_list.T5ForConditionalGeneration_Prefix_2 import T5ForConditionalGeneration_Prefix_2
 from models_list.PLBartForConditionalGeneration_Prefix import PLBartForConditionalGeneration_Prefix
 from models_list.Seq2Seq import Seq2Seq, Seq2Seq4UniXcoder_completion, Seq2Seq4UniXcoder_generation, Seq2Seq4UniXcoder_e2d
 from models_list.Classification_Model import Model4UniXcoder, CloneModel, DefectModel
-
-from models_list.prompt.modeling_t5 import T5ForConditionalGeneration_Code
+from models_list.unified.prefixtuning import E2D_Model_Prefix
+from models_list.unified.adaptertuning import E2D_Model_Adapter
+from models_list.unified.bitfit import E2D_Model_Bitfit
+# from models_list.prompt.modeling_t5 import T5ForConditionalGeneration
 #import codecs
 #sys.stdout = codecs.getwriter("utf-8")(sys.stdout.detach())
 logger = logging.getLogger(__name__)
@@ -48,6 +50,7 @@ MODEL_CLASSES = {'roberta': (AutoConfig, AutoModel, AutoTokenizer),
                  'codet5': (AutoConfig, T5ForConditionalGeneration, AutoTokenizer),
                  'bart': (AutoConfig, BartForConditionalGeneration, AutoTokenizer),
                  'plbart':(AutoConfig, PLBartForConditionalGeneration, AutoTokenizer)}
+
 # MODEL_CLASSES_PLG = {'roberta': (AutoConfig, AutoModel, AutoTokenizer),
 #                  'codebert': (AutoConfig, AutoModel, AutoTokenizer),
 #                  'graphcodebert': (AutoConfig, AutoModel, AutoTokenizer),
@@ -56,14 +59,42 @@ MODEL_CLASSES = {'roberta': (AutoConfig, AutoModel, AutoTokenizer),
 #                  'codet5': (AutoConfig, T5ForConditionalGeneration_Prefix, AutoTokenizer),
 #                  'bart': (AutoConfig, BartForConditionalGeneration, AutoTokenizer),
 #                  'plbart':(AutoConfig, PLBartForConditionalGeneration_Prefix, AutoTokenizer)}
+
 MODEL_CLASSES_PLG = {'roberta': (AutoConfig, AutoModel, AutoTokenizer),
                  'codebert': (AutoConfig, AutoModel, AutoTokenizer),
                  'graphcodebert': (AutoConfig, AutoModel, AutoTokenizer),
                  'unixcoder':(AutoConfig, AutoModel, AutoTokenizer),
-                 't5': (AutoConfig, T5ForConditionalGeneration_Prefix, AutoTokenizer),
-                 'codet5': (AutoConfig, T5ForConditionalGeneration_Code, AutoTokenizer),
+                 't5': (AutoConfig, T5ForConditionalGeneration, AutoTokenizer),
+                 'codet5': (AutoConfig, T5ForConditionalGeneration, AutoTokenizer),
                  'bart': (AutoConfig, BartForConditionalGeneration, AutoTokenizer),
-                 'plbart':(AutoConfig, PLBartForConditionalGeneration_Prefix, AutoTokenizer)}
+                 'plbart':(AutoConfig, PLBartForConditionalGeneration, AutoTokenizer)}
+
+MODEL_CLASSES_PLG_PREFIX = {'roberta': (AutoConfig, AutoModel, AutoTokenizer),
+                 'codebert': (AutoConfig, AutoModel, AutoTokenizer),
+                 'graphcodebert': (AutoConfig, AutoModel, AutoTokenizer),
+                 'unixcoder':(AutoConfig, AutoModel, AutoTokenizer),
+                 't5': (AutoConfig, T5ForConditionalGeneration_Prefix, AutoTokenizer),
+                 'codet5': (AutoConfig, E2D_Model_Prefix, AutoTokenizer),
+                 'bart': (AutoConfig, BartForConditionalGeneration, AutoTokenizer),
+                 'plbart':(AutoConfig, E2D_Model_Prefix, AutoTokenizer)}
+
+MODEL_CLASSES_PLG_ADAPTER = {'roberta': (AutoConfig, AutoModel, AutoTokenizer),
+                 'codebert': (AutoConfig, AutoModel, AutoTokenizer),
+                 'graphcodebert': (AutoConfig, AutoModel, AutoTokenizer),
+                 'unixcoder':(AutoConfig, AutoModel, AutoTokenizer),
+                 't5': (AutoConfig, T5ForConditionalGeneration_Prefix, AutoTokenizer),
+                 'codet5': (AutoConfig, E2D_Model_Adapter, AutoTokenizer),
+                 'bart': (AutoConfig, BartForConditionalGeneration, AutoTokenizer),
+                 'plbart':(AutoConfig, E2D_Model_Adapter, AutoTokenizer)}
+
+MODEL_CLASSES_PLG_BITFIT = {'roberta': (AutoConfig, AutoModel, AutoTokenizer),
+                 'codebert': (AutoConfig, AutoModel, AutoTokenizer),
+                 'graphcodebert': (AutoConfig, AutoModel, AutoTokenizer),
+                 'unixcoder':(AutoConfig, AutoModel, AutoTokenizer),
+                 't5': (AutoConfig, T5ForConditionalGeneration_Prefix, AutoTokenizer),
+                 'codet5': (AutoConfig, E2D_Model_Bitfit, AutoTokenizer),
+                 'bart': (AutoConfig, BartForConditionalGeneration, AutoTokenizer),
+                 'plbart':(AutoConfig, E2D_Model_Bitfit, AutoTokenizer)}
 # MODEL_CLASSES = {'roberta': (AutoConfig, AutoModel, AutoTokenizer),
 #                  'codebert': (AutoConfig, AutoModel, AutoTokenizer),
 #                  'graphcodebert': (AutoConfig, AutoModel, AutoTokenizer),
@@ -89,7 +120,14 @@ def get_model_size(model):
 def bulid_or_load_gen_model(args):
     # checkpoint = MODEL_CHECKPOINTS[args.model_name]
     checkpoint = os.path.join(args.huggingface_locals, MODEL_LOCALS[args.model_name])
-    config_class, model_class, tokenizer_class = MODEL_CLASSES_PLG[args.model_name]
+    if args.prefix_tuning:
+        config_class, model_class, tokenizer_class = MODEL_CLASSES_PLG_PREFIX[args.model_name]
+    elif args.adapter_tuning:
+        config_class, model_class, tokenizer_class = MODEL_CLASSES_PLG_ADAPTER[args.model_name]
+    elif args.bitfit:
+        config_class, model_class, tokenizer_class = MODEL_CLASSES_PLG_BITFIT[args.model_name]
+    else:
+        config_class, model_class, tokenizer_class = MODEL_CLASSES_PLG[args.model_name]
     
     config = config_class.from_pretrained(checkpoint)
     tokenizer = tokenizer_class.from_pretrained(checkpoint)
@@ -111,28 +149,43 @@ def bulid_or_load_gen_model(args):
                 eos_ids = [tokenizer.sep_token_id]
             else:
                 eos_ids = [tokenizer.convert_tokens_to_ids('Ġ;'), tokenizer.convert_tokens_to_ids('Ġ}'), tokenizer.convert_tokens_to_ids('Ġ{')]
-            model=Seq2Seq4UniXcoder_completion(encoder=encoder,decoder=encoder,config=config,
+            model=Seq2Seq4UniXcoder_completion(encoder=encoder,decoder=encoder,config=config, tokenizer=tokenizer, args=args,
                         beam_size=args.beam_size,max_length=args.max_target_length,
                         sos_id=tokenizer.cls_token_id,eos_id=eos_ids)
         elif args.task in ['generate']:
-            model = Seq2Seq4UniXcoder_generation(encoder=encoder,decoder=encoder,config=config,
+            model = Seq2Seq4UniXcoder_generation(encoder=encoder,decoder=encoder,config=config, tokenizer=tokenizer, args=args,
                   beam_size=args.beam_size,max_length=args.max_target_length,
                   sos_id=tokenizer.convert_tokens_to_ids(["<mask0>"])[0],eos_id=tokenizer.sep_token_id)
         elif args.task in ['summarize','translate','refine']:
-            model = Seq2Seq4UniXcoder_e2d(encoder=encoder,decoder=encoder,config=config,
+            model = Seq2Seq4UniXcoder_e2d(encoder=encoder,decoder=encoder,config=config, tokenizer=tokenizer, args=args,
                         beam_size=args.beam_size,max_length=args.max_target_length,
                         sos_id=tokenizer.convert_tokens_to_ids(["<mask0>"])[0],eos_id=tokenizer.sep_token_id)
             
     elif args.model_name in ['t5', 'codet5','bart','plbart']:
-        model = model_class.from_pretrained(checkpoint, output_attentions=True, args=args, tokenizer=tokenizer)
+        if hasattr(model_class,'from_pretrained'):
+            model = model_class.from_pretrained(checkpoint, output_attentions=True, args=args, tokenizer=tokenizer)
+        else:# a wrapper model class
+            args.pretrained_model_name_or_path= checkpoint
+            model = model_class(args=args)
     if args.prefix_tuning:
-        if args.model_name not in ['unixcoder']:
-            try:
-                logger.info("Finish loading model [%s] parameters from %s", get_model_size(
-                    model.code_prefix.gat_layer), args.model_name)
-            except:
-                logger.info("Finish loading model [%s] parameters from %s", get_model_size(
-                    model), args.model_name)
+        if hasattr(model,'code_prefix'):
+            logger.info("Finish loading model [%s] parameters from %s", get_model_size(
+                model.code_prefix.gat_layer), args.model_name)
+        elif hasattr(model,'knowledge_trans'):
+            logger.info("Finish loading model [%s] parameters from %s", get_model_size(
+                model.knowledge_trans), args.model_name)
+        elif hasattr(model.pretrain_model,'adapter'):
+            logger.info("Finish loading model [%s] parameters from %s", get_model_size(
+                model.pretrain_model.adapter), args.model_name)
+        else:
+            logger.info("Finish loading model [%s] parameters from %s", get_model_size(
+                model), args.model_name)
+        # if hasattr(model,'pretrain_model'):
+        #     model = model.pretrain_model
+        #     # print(hasattr(model,'parameters'))
+    elif args.adapter_tuning or args.bitfit:
+        logger.info("Finish loading model [%s] parameters from %s", get_model_size(
+            model), args.model_name)
     else:
         logger.info("Finish loading model [%s] parameters from %s", get_model_size(
             model), args.model_name)
@@ -142,7 +195,14 @@ def bulid_or_load_gen_model(args):
 def bulid_or_load_cls_model(args):
     # checkpoint = MODEL_CHECKPOINTS[args.model_name]
     checkpoint = os.path.join(args.huggingface_locals, MODEL_LOCALS[args.model_name])
-    config_class, model_class, tokenizer_class = MODEL_CLASSES[args.model_name]
+    if args.prefix_tuning:
+        config_class, model_class, tokenizer_class = MODEL_CLASSES[args.model_name]
+    elif args.adapter_tuning:
+        config_class, model_class, tokenizer_class = MODEL_CLASSES_PLG_ADAPTER[args.model_name]
+    elif args.bitfit:
+        config_class, model_class, tokenizer_class = MODEL_CLASSES_PLG_BITFIT[args.model_name]
+    else:
+        config_class, model_class, tokenizer_class = MODEL_CLASSES[args.model_name]
     config = config_class.from_pretrained(checkpoint)
     tokenizer = tokenizer_class.from_pretrained(checkpoint)
     # if args.model_name in ['unixcoder']:
@@ -151,7 +211,12 @@ def bulid_or_load_cls_model(args):
     if args.model_name not in ['t5', 'codet5','bart','plbart']:
         model = model_class.from_pretrained(checkpoint, output_attentions=True)
     else:
-        model = model_class.from_pretrained(checkpoint, output_attentions=True)
+        if hasattr(model_class,'from_pretrained'):
+            model = model_class.from_pretrained(checkpoint, output_attentions=True)
+        else:# a wrapper model class
+            args.pretrained_model_name_or_path= checkpoint
+            model = model_class(args=args)
+    # if not args.adapter_tuning:
     if args.task == 'defect':
         model = DefectModel(model, config, tokenizer, args)
     elif args.task == 'clone':

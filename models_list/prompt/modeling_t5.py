@@ -202,7 +202,7 @@ PARALLELIZE_DOCSTRING = r"""
     Example::
 
             # Here is an example of a device map on a machine with 4 GPUs using t5-3b, which has a total of 24 attention modules:
-            model = T5ForConditionalGeneration_Code.from_pretrained('t5-3b')
+            model = T5ForConditionalGeneration.from_pretrained('t5-3b')
             device_map = {0: [0, 1, 2],
 
                          1: [3, 4, 5, 6, 7, 8, 9],
@@ -216,7 +216,7 @@ DEPARALLELIZE_DOCSTRING = r"""
     Example::
 
         # On a 4 GPU machine with t5-3b:
-        model = T5ForConditionalGeneration_Code.from_pretrained('t5-3b')
+        model = T5ForConditionalGeneration.from_pretrained('t5-3b')
         device_map = {0: [0, 1, 2],
 
                      1: [3, 4, 5, 6, 7, 8, 9],
@@ -416,7 +416,7 @@ class T5Attention(nn.Module):
             query_length=None,
             use_cache=False,
             output_attentions=False,
-            prefix=None,  # TODO: Chen
+            prefix=None,  # modified
     ):
         """
         Self-attention (if key_value_states is None) or attention over source sentence (provided by key_value_states).
@@ -478,13 +478,13 @@ class T5Attention(nn.Module):
             hidden_states, self.v, key_value_states, past_key_value[1] if past_key_value is not None else None
         )
 
-        # Prefix Concatenation should be done AFTER present_key_value_state is saved.  # TODO: Chen
-        present_key_value_state = (key_states, value_states) if (self.is_decoder and use_cache) else None  # TODO: Chen
+        # Prefix Concatenation should be done AFTER present_key_value_state is saved.  # modified
+        present_key_value_state = (key_states, value_states) if (self.is_decoder and use_cache) else None  # modified
 
-        # Concatenate prefix to key-value states.  # TODO: Chen
+        # Concatenate prefix to key-value states.  # modified
         if prefix is not None:
             key_states = torch.cat([prefix["prev_key"], key_states], dim=2)
-            value_states = torch.cat([prefix["prev_value"], value_states], dim=2)  # TODO: Chen
+            value_states = torch.cat([prefix["prev_value"], value_states], dim=2)  # modified
 
         # compute scores
         scores = torch.matmul(
@@ -506,25 +506,25 @@ class T5Attention(nn.Module):
             if past_key_value is not None:
                 position_bias = position_bias[:, :, -int_seq_length:, :]
 
-            # Handle position_bias for prefix.  # TODO: Chen
+            # Handle position_bias for prefix.  # modified
             if prefix is not None:
                 position_bias = torch.cat([
                     torch.zeros((1, self.n_heads, int_seq_length, key_states.shape[2] - key_length)).to(position_bias.device),
                     position_bias
-                ], dim=3)  # TODO: Chen
+                ], dim=3)  # modified
 
             if mask is not None:
-                # Handle attention masks for prefix.  # TODO: Chen
+                # Handle attention masks for prefix.  # modified
                 if prefix is not None:
-                    assert key_states.shape[2] > mask.shape[3]  # TODO: Chen
-                    assert prefix["prev_key_padding_mask"].shape[1] == key_states.shape[2] - key_length  # TODO: Chen
+                    assert key_states.shape[2] > mask.shape[3]  # modified
+                    assert prefix["prev_key_padding_mask"].shape[1] == key_states.shape[2] - key_length  # modified
                     assert mask.shape[3] == key_length
                     mask = torch.cat([
                         #torch.zeros((batch_size, 1, mask.shape[2], key_states.shape[2] - key_length)).to(mask.device),
                         prefix["prev_key_padding_mask"].float().unsqueeze(1).unsqueeze(2).expand(-1, -1, mask.shape[2], -1) * -10000.0,
                         mask
-                    ], dim=3)  # TODO: Chen
-                position_bias = position_bias + mask  # (batch_size, n_heads, seq_length, key_length + prefix_length)  # TODO: Chen
+                    ], dim=3)  # modified
+                position_bias = position_bias + mask  # (batch_size, n_heads, seq_length, key_length + prefix_length)  # modified
 
         scores += position_bias
         attn_weights = nn.functional.softmax(scores.float(), dim=-1).type_as(
@@ -541,7 +541,7 @@ class T5Attention(nn.Module):
         attn_output = unshape(torch.matmul(attn_weights, value_states))  # (batch_size, seq_length, dim)
         attn_output = self.o(attn_output)
 
-        # present_key_value_state = (key_states, value_states) if (self.is_decoder and use_cache) else None  # TODO: Chen
+        # present_key_value_state = (key_states, value_states) if (self.is_decoder and use_cache) else None  # modified
         outputs = (attn_output,) + (present_key_value_state,) + (position_bias,)
 
         if output_attentions:
@@ -565,7 +565,7 @@ class T5LayerSelfAttention(nn.Module):
             past_key_value=None,
             use_cache=False,
             output_attentions=False,
-            prefix=None,  # TODO: Chen
+            prefix=None,  # modified
     ):
         normed_hidden_states = self.layer_norm(hidden_states)
         attention_output = self.SelfAttention(
@@ -576,7 +576,7 @@ class T5LayerSelfAttention(nn.Module):
             past_key_value=past_key_value,
             use_cache=use_cache,
             output_attentions=output_attentions,
-            prefix=prefix,  # TODO: Chen
+            prefix=prefix,  # modified
         )
         hidden_states = hidden_states + self.dropout(attention_output[0])
         outputs = (hidden_states,) + attention_output[1:]  # add attentions if we output them
@@ -601,7 +601,7 @@ class T5LayerCrossAttention(nn.Module):
             use_cache=False,
             query_length=None,
             output_attentions=False,
-            prefix=None,  # TODO: Chen
+            prefix=None,  # modified
     ):
         normed_hidden_states = self.layer_norm(hidden_states)
         attention_output = self.EncDecAttention(
@@ -614,7 +614,7 @@ class T5LayerCrossAttention(nn.Module):
             use_cache=use_cache,
             query_length=query_length,
             output_attentions=output_attentions,
-            prefix=prefix,  # TODO: Chen
+            prefix=prefix,  # modified
         )
         layer_output = hidden_states + self.dropout(attention_output[0])
         outputs = (layer_output,) + attention_output[1:]  # add attentions if we output them
@@ -646,9 +646,9 @@ class T5Block(nn.Module):
             use_cache=False,
             output_attentions=False,
             return_dict=True,
-            encoder_prefix=None,  # TODO: Chen
-            decoder_prefix=None,  # TODO: Chen
-            cross_attn_prefix=None,  # TODO: Chen
+            encoder_prefix=None,  # modified
+            decoder_prefix=None,  # modified
+            cross_attn_prefix=None,  # modified
     ):
 
         if past_key_value is not None:
@@ -675,7 +675,7 @@ class T5Block(nn.Module):
             past_key_value=self_attn_past_key_value,
             use_cache=use_cache,
             output_attentions=output_attentions,
-            prefix=decoder_prefix if self.is_decoder else encoder_prefix   # TODO: Chen
+            prefix=decoder_prefix if self.is_decoder else encoder_prefix   # modified
         )
         hidden_states, present_key_value_state = self_attention_outputs[:2]
         attention_outputs = self_attention_outputs[2:]  # Keep self-attention outputs and relative position weights
@@ -704,7 +704,7 @@ class T5Block(nn.Module):
                 query_length=query_length,
                 use_cache=use_cache,
                 output_attentions=output_attentions,
-                prefix=cross_attn_prefix  # TODO: Chen
+                prefix=cross_attn_prefix  # modified
             )
             hidden_states = cross_attention_outputs[0]
 
@@ -765,7 +765,7 @@ class T5PreTrainedModel(PreTrainedModel):
         factor = self.config.initializer_factor  # Used for testing weights initialization
         if isinstance(module, T5LayerNorm):
             module.weight.data.fill_(factor * 1.0)
-        elif isinstance(module, (T5Model, T5ForConditionalGeneration_Code, T5EncoderModel)):
+        elif isinstance(module, (T5Model, T5ForConditionalGeneration, T5EncoderModel)):
             # Mesh TensorFlow embeddings initialization
             # See https://github.com/tensorflow/mesh/blob/fa19d69eafc9a482aff0b59ddd96b025c0cb207d/mesh_tensorflow/layers.py#L1624
             module.shared.weight.data.normal_(mean=0.0, std=factor * 1.0)
@@ -900,7 +900,7 @@ class T5Stack(T5PreTrainedModel):
             output_attentions=None,
             output_hidden_states=None,
             return_dict=None,
-            past_prompt=None,  # TODO: Chen
+            past_prompt=None,  # modified
     ):
         # Model parallel
         if self.model_parallel:
@@ -982,9 +982,9 @@ class T5Stack(T5PreTrainedModel):
             layer_head_mask = head_mask[i]
             cross_attn_layer_head_mask = cross_attn_head_mask[i]
 
-            encoder_prefix = past_prompt[i]['encoder_prompt'] if past_prompt else None  # TODO: Chen
-            decoder_prefix = past_prompt[i]['decoder_prompt'] if past_prompt else None  # TODO: Chen
-            cross_attn_prefix = past_prompt[i]['cross_attention_prompt'] if past_prompt else None  # TODO: Chen
+            encoder_prefix = past_prompt[i]['encoder_prompt'] if past_prompt else None  # modified
+            decoder_prefix = past_prompt[i]['decoder_prompt'] if past_prompt else None  # modified
+            cross_attn_prefix = past_prompt[i]['cross_attention_prompt'] if past_prompt else None  # modified
 
             # Model parallel
             if self.model_parallel:
@@ -1034,7 +1034,7 @@ class T5Stack(T5PreTrainedModel):
                     None,  # past_key_value is always None with gradient checkpointing
                 )
 
-                raise NotImplementedError()  # TODO: Chen
+                raise NotImplementedError()  # modified
             else:
                 layer_outputs = layer_module(
                     hidden_states,
@@ -1048,9 +1048,9 @@ class T5Stack(T5PreTrainedModel):
                     past_key_value=past_key_value,
                     use_cache=use_cache,
                     output_attentions=output_attentions,
-                    encoder_prefix=encoder_prefix,  # TODO: Chen
-                    decoder_prefix=decoder_prefix,  # TODO: Chen
-                    cross_attn_prefix=cross_attn_prefix,  # TODO: Chen
+                    encoder_prefix=encoder_prefix,  # modified
+                    decoder_prefix=decoder_prefix,  # modified
+                    cross_attn_prefix=cross_attn_prefix,  # modified
                 )
 
             # layer_outputs is a tuple with:
@@ -1465,7 +1465,7 @@ class T5Model(T5PreTrainedModel):
 
 
 @add_start_docstrings("""T5 Model with a `language modeling` head on top. """, T5_START_DOCSTRING)
-class T5ForConditionalGeneration_Code(T5PreTrainedModel):
+class T5ForConditionalGeneration(T5PreTrainedModel):
     _keys_to_ignore_on_load_missing = [
         r"encoder\.embed_tokens\.weight",
         r"decoder\.embed_tokens\.weight",
@@ -1475,7 +1475,7 @@ class T5ForConditionalGeneration_Code(T5PreTrainedModel):
         r"decoder\.block\.0\.layer\.1\.EncDecAttention\.relative_attention_bias\.weight",
     ]
 
-    def __init__(self, config, args, tokenizer):
+    def __init__(self, config, **kwargs):
         super().__init__(config)
         self.model_dim = config.d_model
 
@@ -1565,7 +1565,7 @@ class T5ForConditionalGeneration_Code(T5PreTrainedModel):
             output_attentions=None,
             output_hidden_states=None,
             return_dict=None,
-            past_prompt=None,  # TODO: Chen
+            past_prompt=None,  # modified
     ):
         r"""
         labels (:obj:`torch.LongTensor` of shape :obj:`(batch_size,)`, `optional`):
@@ -1577,10 +1577,10 @@ class T5ForConditionalGeneration_Code(T5PreTrainedModel):
 
         Examples::
 
-            >>> from transformers import T5Tokenizer, T5ForConditionalGeneration_Code
+            >>> from transformers import T5Tokenizer, T5ForConditionalGeneration
 
             >>> tokenizer = T5Tokenizer.from_pretrained('t5-small')
-            >>> model = T5ForConditionalGeneration_Code.from_pretrained('t5-small')
+            >>> model = T5ForConditionalGeneration.from_pretrained('t5-small')
 
             >>> input_ids = tokenizer('The <extra_id_0> walks in <extra_id_1> park', return_tensors='pt').input_ids
             >>> labels = tokenizer('<extra_id_0> cute dog <extra_id_1> the <extra_id_2> </s>', return_tensors='pt').input_ids
@@ -1611,7 +1611,7 @@ class T5ForConditionalGeneration_Code(T5PreTrainedModel):
                 output_attentions=output_attentions,
                 output_hidden_states=output_hidden_states,
                 return_dict=return_dict,
-                past_prompt=past_prompt,  # TODO: Chen
+                past_prompt=past_prompt,  # modified
             )
         elif return_dict and not isinstance(encoder_outputs, BaseModelOutput):
             encoder_outputs = BaseModelOutput(
@@ -1663,7 +1663,7 @@ class T5ForConditionalGeneration_Code(T5PreTrainedModel):
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
-            past_prompt=past_prompt,  # TODO: Chen
+            past_prompt=past_prompt,  # modified
         )
 
         sequence_output = decoder_outputs[0]
@@ -1729,7 +1729,7 @@ class T5ForConditionalGeneration_Code(T5PreTrainedModel):
             "decoder_head_mask": decoder_head_mask,
             "cross_attn_head_mask": cross_attn_head_mask,
             "use_cache": use_cache,
-            "past_prompt": kwargs['past_prompt'],  # TODO: Chen
+            "past_prompt": kwargs['past_prompt'],  # modified
         }
 
     def prepare_decoder_input_ids_from_labels(self, labels: torch.Tensor):

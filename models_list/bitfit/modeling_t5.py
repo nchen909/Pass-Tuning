@@ -44,7 +44,6 @@ from transformers.modeling_utils import PreTrainedModel, find_pruneable_heads_an
 from transformers.utils import logging
 from transformers.utils.model_parallel_utils import assert_device_map, get_device_map
 from transformers.models.t5.configuration_t5 import T5Config
-from .adapter import Adapter
 
 logger = logging.get_logger(__name__)
 
@@ -294,18 +293,10 @@ class T5LayerFF(nn.Module):
 
         self.layer_norm = T5LayerNorm(config.d_model, eps=config.layer_norm_epsilon)
         self.dropout = nn.Dropout(config.dropout_rate)
-        self.adapter = Adapter(input_size=config.d_model,
-                               down_sample=config.d_model // 2,
-                               non_linearity="relu",
-                               init_bert_weights=True,
-                               add_layer_norm_before=True,
-                               residual_before_ln=True,
-                               )  # modified
 
     def forward(self, hidden_states):
         forwarded_states = self.layer_norm(hidden_states)
         forwarded_states = self.DenseReluDense(forwarded_states)
-        forwarded_states = self.adapter(forwarded_states)  # modified
         hidden_states = hidden_states + self.dropout(forwarded_states)
 
         return hidden_states

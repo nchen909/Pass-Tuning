@@ -41,7 +41,7 @@ def traverse( cursor, G, came_up, node_tag, node_sum, parent_dict):
             node_tag = parent_dict[node_tag]
             traverse(cursor, G, came_up=True, node_tag=node_tag,
                     node_sum=node_sum,  parent_dict=parent_dict)
-class PrefixCode():
+class GraphMetadata():
     def __init__(self, args,examples, data, lang):
         self.args = args
         self.examples = examples

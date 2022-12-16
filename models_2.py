@@ -7,7 +7,7 @@ from transformers import AutoTokenizer, AutoModel, AutoConfig, T5ForConditionalG
 
 import logging
 import sys
-from code_prefix import CodePrefix
+from code_prefix import CodeGraphPrefix
 #import codecs
 #sys.stdout = codecs.getwriter("utf-8")(sys.stdout.detach())
 logger = logging.getLogger(__name__)
@@ -206,7 +206,7 @@ class CloneModel(nn.Module):
         self.n_head = config.num_attention_heads
         self.n_embd = config.hidden_size // config.num_attention_heads
         # add prefix encoder
-        self.code_prefix = CodePrefix(self.config, embeddings_weight)
+        self.code_prefix = CodeGraphPrefix(self.config, embeddings_weight)
         self.dropout = torch.nn.Dropout(config.hidden_dropout_prob)
         # ========================  ==
     

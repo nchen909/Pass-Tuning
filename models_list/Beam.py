@@ -7,5 +7,5 @@ from transformers import AutoTokenizer, AutoModel, AutoConfig, T5ForConditionalG
 from transformers import PLBartForConditionalGeneration
 import logging
 import sys
-from code_prefix import CodePrefix
-from utils import load_prefix_code
+from code_prefix import CodeGraphPrefix
+from utils import get_graph_metadata

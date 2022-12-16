@@ -8,8 +8,8 @@ from transformers import AutoTokenizer, AutoModel, AutoConfig, T5ForConditionalG
 from transformers import PLBartForConditionalGeneration
 import logging
 import sys
-from code_prefix import CodePrefix
-from utils import load_prefix_code
+from code_prefix import CodeGraphPrefix
+from utils import get_graph_metadata
 
 
 class RobertaClassificationHead(nn.Module):
@@ -82,15 +82,15 @@ class CloneModel(nn.Module):
 
             # if self.args.model_name in ['t5','codet5','bart','plbart']:
             #     # self.code_prefix_tokens = torch.arange(10,self.args.max_target_length+10, dtype=torch.long).cuda()
-            #     self.code_prefix_tokens = torch.tensor(load_prefix_code(self.args,self.tokenizer), dtype=torch.long).cuda()
+            #     self.code_prefix_tokens = torch.tensor(get_graph_metadata(self.args,self.tokenizer), dtype=torch.long).cuda()
             # else:
             #     # self.code_prefix_tokens = torch.arange(10,self.args.max_source_length+10, dtype=torch.long).cuda()
-            #     self.code_prefix_tokens = torch.tensor(load_prefix_code(self.args,self.tokenizer), dtype=torch.long).cuda()
+            #     self.code_prefix_tokens = torch.tensor(get_graph_metadata(self.args,self.tokenizer), dtype=torch.long).cuda()
             # #now len:args.max_source_length=max_target_length=code_prefix_tokens for t5&bart
             # self.pre_seq_len = self.args.max_source_length # 5
             # self.code_prefix_matrix = torch.ones(len(self.code_prefix_tokens), len(self.code_prefix_tokens)).long().cuda()
 
-            self.code_prefix_tokens, self.code_prefix_matrix = load_prefix_code(self.args,self.tokenizer)
+            self.code_prefix_tokens, self.code_prefix_matrix = get_graph_metadata(self.args,self.tokenizer)
             self.code_prefix_tokens = torch.tensor(self.code_prefix_tokens, dtype=torch.long).cuda()
             self.code_prefix_matrix = torch.tensor(self.code_prefix_matrix, dtype=torch.long).cuda()
             self.pre_seq_len = self.args.max_source_length
@@ -99,7 +99,7 @@ class CloneModel(nn.Module):
             self.n_head = config.num_attention_heads
             self.n_embd = config.hidden_size // config.num_attention_heads
             # add prefix encoder
-            self.code_prefix = CodePrefix(self.config, embeddings_weight,self.args)
+            self.code_prefix = CodeGraphPrefix(self.config, embeddings_weight,self.args)
             if self.args.model_name in ['t5','codet5']:
                 self.dropout = torch.nn.Dropout(config.dropout_rate)
             elif self.args.model_name in ['bart','plbart']:
@@ -293,7 +293,7 @@ class DefectModel(nn.Module):
             if self.args.fix_model_param:
                 for param in self.encoder.parameters():
                     param.requires_grad = False
-            self.code_prefix_tokens, self.code_prefix_matrix = load_prefix_code(self.args,self.tokenizer)
+            self.code_prefix_tokens, self.code_prefix_matrix = get_graph_metadata(self.args,self.tokenizer)
             self.code_prefix_tokens = torch.tensor(self.code_prefix_tokens, dtype=torch.long).cuda()
             self.code_prefix_matrix = torch.tensor(self.code_prefix_matrix, dtype=torch.long).cuda()
             self.pre_seq_len = self.args.max_source_length
@@ -302,7 +302,7 @@ class DefectModel(nn.Module):
             self.n_head = config.num_attention_heads
             self.n_embd = config.hidden_size // config.num_attention_heads
             # add prefix encoder
-            self.code_prefix = CodePrefix(self.config, embeddings_weight,self.args)
+            self.code_prefix = CodeGraphPrefix(self.config, embeddings_weight,self.args)
             if self.args.model_name in ['t5','codet5']:
                 self.dropout = torch.nn.Dropout(config.dropout_rate)
             elif self.args.model_name in ['bart','plbart']:
@@ -350,7 +350,6 @@ class DefectModel(nn.Module):
         else:
             outputs = self.encoder(input_ids=source_ids, attention_mask=attention_mask,
                                     labels=source_ids, decoder_attention_mask=attention_mask, output_hidden_states=True)
-
         hidden_states = outputs['decoder_hidden_states'][-1]
         eos_mask = source_ids.eq(self.config.eos_token_id)
 
