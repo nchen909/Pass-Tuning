@@ -8,7 +8,7 @@ from transformers import AutoTokenizer, AutoModel, AutoConfig, T5ForConditionalG
 from transformers import PLBartForConditionalGeneration
 import logging
 import sys
-from code_prefix import CodeGraphPrefix
+
 from utils import get_graph_metadata
 
 
@@ -99,7 +99,14 @@ class CloneModel(nn.Module):
             self.n_head = config.num_attention_heads
             self.n_embd = config.hidden_size // config.num_attention_heads
             # add prefix encoder
-            self.code_prefix = CodeGraphPrefix(self.config, embeddings_weight,self.args)
+
+            if self.args.prefix_tuning == 'pass_tuning':
+                from GAT_prefix import CodeGraphPrefix
+                self.code_prefix = CodeGraphPrefix(self.config, embeddings_weight,self.args)
+            elif self.args.prefix_tuning == 'GCN_tuning':
+                from GCN_prefix import CodeGraphPrefix
+                self.code_prefix = CodeGraphPrefix(self.config, embeddings_weight,self.args)
+            
             if self.args.model_name in ['t5','codet5']:
                 self.dropout = torch.nn.Dropout(config.dropout_rate)
             elif self.args.model_name in ['bart','plbart']:
@@ -110,6 +117,11 @@ class CloneModel(nn.Module):
     def get_prompt(self, batch_size):
         code_prefix_tokens = self.code_prefix_tokens.unsqueeze(0).expand(batch_size, -1)
         code_prefix_matrix = self.code_prefix_matrix.unsqueeze(0).expand(batch_size, -1, -1)
+        if self.args.adjcency_mode=='fully-connected':
+            code_prefix_matrix = torch.where(code_prefix_matrix >0,  torch.ones_like(code_prefix_matrix), torch.zeros_like(code_prefix_matrix))
+        elif self.args.adjcency_mode=='sast':
+            code_prefix_matrix = torch.where(code_prefix_matrix ==1, torch.ones_like(code_prefix_matrix), torch.zeros_like(code_prefix_matrix)) 
+        
         past_key_values = self.code_prefix(code_prefix_tokens, code_prefix_matrix)
         # bsz, seqlen, _ = past_key_values.shape
 
@@ -130,7 +142,7 @@ class CloneModel(nn.Module):
     
     def get_t5_vec(self, source_ids):
         attention_mask = source_ids.ne(self.tokenizer.pad_token_id)
-        if self.args.prefix_tuning:
+        if 0 and self.args.prefix_tuning: # use overwritten modeling_t5
             # batch_size = attention_mask.shape[0]
             # past_key_values = self.get_prompt(batch_size=batch_size) # add
             # prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len,dtype=attention_mask.dtype).to(self.encoder.device)
@@ -173,7 +185,7 @@ class CloneModel(nn.Module):
         attention_mask = source_ids.ne(self.tokenizer.pad_token_id)
         # position_ids = torch.arange(1,source_ids.size(1)+1, dtype=torch.long, device=source_ids.device).expand_as(source_ids).cuda()
         # position_ids = position_ids*attention_mask
-        if self.args.prefix_tuning:
+        if 0 and self.args.prefix_tuning:# use overwritten modeling_t5
             batch_size = attention_mask.shape[0]
             past_key_values = self.get_prompt(batch_size=batch_size) # add
             prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len,dtype=attention_mask.dtype).to(self.encoder.device)
@@ -302,7 +314,13 @@ class DefectModel(nn.Module):
             self.n_head = config.num_attention_heads
             self.n_embd = config.hidden_size // config.num_attention_heads
             # add prefix encoder
-            self.code_prefix = CodeGraphPrefix(self.config, embeddings_weight,self.args)
+            if self.args.prefix_tuning == 'pass_tuning':
+                from GAT_prefix import CodeGraphPrefix
+                self.code_prefix = CodeGraphPrefix(self.config, embeddings_weight,self.args)
+            elif self.args.prefix_tuning == 'GCN_tuning':
+                from GCN_prefix import CodeGraphPrefix
+                self.code_prefix = CodeGraphPrefix(self.config, embeddings_weight,self.args)
+            
             if self.args.model_name in ['t5','codet5']:
                 self.dropout = torch.nn.Dropout(config.dropout_rate)
             elif self.args.model_name in ['bart','plbart']:
@@ -313,6 +331,37 @@ class DefectModel(nn.Module):
     def get_prompt(self, batch_size):
         code_prefix_tokens = self.code_prefix_tokens.unsqueeze(0).expand(batch_size, -1)
         code_prefix_matrix = self.code_prefix_matrix.unsqueeze(0).expand(batch_size, -1, -1)
+        if self.args.adjcency_mode=='fully-connected':
+            code_prefix_matrix = torch.where(code_prefix_matrix >0,  torch.ones_like(code_prefix_matrix), torch.zeros_like(code_prefix_matrix))
+        elif self.args.adjcency_mode=='sast':
+            code_prefix_matrix = torch.where(code_prefix_matrix ==1, torch.ones_like(code_prefix_matrix), torch.zeros_like(code_prefix_matrix)) 
+        
+        past_key_values = self.code_prefix(code_prefix_tokens, code_prefix_matrix)
+        # bsz, seqlen, _ = past_key_values.shape
+
+        past_key_values = past_key_values.view(
+            batch_size, #1 (8)
+            self.pre_seq_len, #3 (seq_len)512
+            self.n_layer * 2, #0 (2)
+            self.n_head, #2 (12)
+            self.n_embd #4 (64)
+        ).contiguous()#注意这里加了contiguous()!
+
+        past_key_values = self.dropout(past_key_values)
+        if self.args.model_name in ['t5','codet5']:
+            past_key_values = past_key_values.permute([2, 0, 3, 1, 4]).contiguous().split(4)
+        else:
+            past_key_values = past_key_values.permute([2, 0, 3, 1, 4]).contiguous().split(2)
+        return past_key_values
+
+    def get_origin_prompt(self, batch_size):
+        code_prefix_tokens = self.code_prefix_tokens.unsqueeze(0).expand(batch_size, -1)
+        code_prefix_matrix = self.code_prefix_matrix.unsqueeze(0).expand(batch_size, -1, -1)
+        if self.args.adjcency_mode=='fully-connected':
+            code_prefix_matrix = torch.where(code_prefix_matrix >0,  torch.ones_like(code_prefix_matrix), torch.zeros_like(code_prefix_matrix))
+        elif self.args.adjcency_mode=='sast':
+            code_prefix_matrix = torch.where(code_prefix_matrix ==1, torch.ones_like(code_prefix_matrix), torch.zeros_like(code_prefix_matrix)) 
+        
         past_key_values = self.code_prefix(code_prefix_tokens, code_prefix_matrix)
         # bsz, seqlen, _ = past_key_values.shape
 
@@ -333,7 +382,7 @@ class DefectModel(nn.Module):
 
     def get_t5_vec(self, source_ids):
         attention_mask = source_ids.ne(self.tokenizer.pad_token_id)
-        if self.args.prefix_tuning:
+        if 0 and self.args.prefix_tuning:# use overwritten modeling_t5
             batch_size = attention_mask.shape[0]
             past_key_values = self.get_prompt(batch_size=batch_size) # add
             prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len,dtype=attention_mask.dtype).to(self.encoder.device)
@@ -350,6 +399,7 @@ class DefectModel(nn.Module):
         else:
             outputs = self.encoder(input_ids=source_ids, attention_mask=attention_mask,
                                     labels=source_ids, decoder_attention_mask=attention_mask, output_hidden_states=True)
+        # print(outputs)
         hidden_states = outputs['decoder_hidden_states'][-1]
         eos_mask = source_ids.eq(self.config.eos_token_id)
 
@@ -361,7 +411,7 @@ class DefectModel(nn.Module):
 
     def get_bart_vec(self, source_ids):
         attention_mask = source_ids.ne(self.tokenizer.pad_token_id)
-        if self.args.prefix_tuning:
+        if 0 and self.args.prefix_tuning:# use overwritten modeling_t5
             batch_size = attention_mask.shape[0]
             past_key_values = self.get_prompt(batch_size=batch_size) # add
             prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len,dtype=attention_mask.dtype).to(self.encoder.device)

@@ -114,7 +114,14 @@ class BartLearnedPositionalEmbedding(nn.Embedding):
 
     def forward(self, input_ids_shape: torch.Size, past_key_values_length: int = 0):
         """`input_ids_shape` is expected to be [bsz x seqlen]."""
-        bsz, seq_len = input_ids_shape[:2]
+        if len(input_ids_shape)==1:
+            # print("Caution! batch = 1")
+            # print("input_ids_shape: ", input_ids_shape)
+
+            bsz = 1
+            seq_len = input_ids_shape[0]
+        else:
+            bsz, seq_len = input_ids_shape[:2]
         positions = torch.arange(
             past_key_values_length, past_key_values_length + seq_len, dtype=torch.long, device=self.weight.device
         )

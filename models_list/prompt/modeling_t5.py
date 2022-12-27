@@ -919,10 +919,16 @@ class T5Stack(T5PreTrainedModel):
                 f"You cannot specify both {err_msg_prefix}input_ids and {err_msg_prefix}inputs_embeds at the same time"
             )
         elif input_ids is not None:
+            # if len(input_ids.size()) == 1:
+            #     input_ids = input_ids.view(input_ids.size()[-1], -1)
             input_shape = input_ids.size()
+            # print('input_ids.size():',input_ids.size())
+            # print(input_shape)
+            # print("########")
             input_ids = input_ids.view(-1, input_shape[-1])
         elif inputs_embeds is not None:
             input_shape = inputs_embeds.size()[:-1]
+            # print("input_shape = inputs_embeds.size()[:-1]")
         else:
             err_msg_prefix = "decoder_" if self.is_decoder else ""
             raise ValueError(f"You have to specify either {err_msg_prefix}input_ids or {err_msg_prefix}inputs_embeds")
@@ -931,7 +937,12 @@ class T5Stack(T5PreTrainedModel):
             assert self.embed_tokens is not None, "You have to initialize the model with valid token embeddings"
             inputs_embeds = self.embed_tokens(input_ids)
 
-        batch_size, seq_length = input_shape
+        # print(input_shape)
+        # print("input_ids.size():", input_ids.size())
+        # print("inputs_embeds.size()[:-1]:", inputs_embeds.size()[:-1])
+        # if input_ids.shape != input_shape:
+            # print("Caution! batch = 1")
+        batch_size, seq_length = input_ids.shape
 
         # required mask seq length can be calculated via length of past
         mask_seq_length = past_key_values[0][0].shape[2] + seq_length if past_key_values is not None else seq_length

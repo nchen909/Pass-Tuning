@@ -62,3 +62,29 @@ bash run_multi_task.sh
 | C2C      | Bugs2Fix  | refine(repair)    | ['small','medium'] (java)                          | end2end        | en2de    | code refinement on[code repair data](https://arxiv.org/pdf/1812.08693.pdf) with small/medium functions                          |
 | C2T      | CodeSN    | summarize         | ['java', 'python', 'javascript','php','ruby','go'] | end2end        | en2de    | code defect detection in[C/C++ data](https://proceedings.neurips.cc/paper/2019/file/49265d2447bc3bbfe9e76306ce40a31f-Paper.pdf) |
 | T2C      | CONCODE   | generate(concode) | [] (java)                                          | end2end        | en2de    | code clone detection in[Java data](https://arxiv.org/pdf/2002.08653.pdf)                                                        |
+
+## 所有消融脚本
+
+### parameter_efficient消融（只t5&bart）
+
+run.sh（full finetuning）
+
+run_adapter.sh
+
+run_bitfit.sh
+
+### prefix结构消融
+
+run_prefix_tuning.sh (MLP)
+
+run_gcn_tuning.sh (GCN)
+
+run_pass_tuning.sh (GAT)
+
+### 初始化
+
+run_random_selection.sh (without retriving)
+
+### 或许要调的
+
+gat_token_num

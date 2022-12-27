@@ -7,7 +7,6 @@ from transformers import AutoTokenizer, AutoModel, AutoConfig, T5ForConditionalG
 from transformers import PLBartForConditionalGeneration
 import logging
 import sys
-from code_prefix import CodeGraphPrefix
 from utils import get_graph_metadata
 
 # https://github.com/microsoft/CodeBERT/blob/master/CodeBERT/code2nl/model.py
@@ -64,7 +63,13 @@ class Seq2Seq(nn.Module):
             self.n_head = config.num_attention_heads
             self.n_embd = config.hidden_size // config.num_attention_heads
             # add prefix encoder
-            self.code_prefix = CodeGraphPrefix(self.config, embeddings_weight,self.args)
+            if self.args.prefix_tuning == 'pass_tuning':
+                from GAT_prefix import CodeGraphPrefix
+                self.code_prefix = CodeGraphPrefix(self.config, embeddings_weight,self.args)
+            elif self.args.prefix_tuning == 'GCN_tuning':
+                from GCN_prefix import CodeGraphPrefix
+                self.code_prefix = CodeGraphPrefix(self.config, embeddings_weight,self.args)
+            
             if self.args.model_name in ['t5','codet5']:
                 self.dropout = torch.nn.Dropout(config.dropout_rate)
             elif self.args.model_name in ['bart','plbart']:
@@ -75,6 +80,11 @@ class Seq2Seq(nn.Module):
     def get_prompt(self, batch_size):
         code_prefix_tokens = self.code_prefix_tokens.unsqueeze(0).expand(batch_size, -1)
         code_prefix_matrix = self.code_prefix_matrix.unsqueeze(0).expand(batch_size, -1, -1)
+        if self.args.adjcency_mode=='fully-connected':
+            code_prefix_matrix = torch.where(code_prefix_matrix >0,  torch.ones_like(code_prefix_matrix), torch.zeros_like(code_prefix_matrix))
+        elif self.args.adjcency_mode=='sast':
+            code_prefix_matrix = torch.where(code_prefix_matrix ==1, torch.ones_like(code_prefix_matrix), torch.zeros_like(code_prefix_matrix)) 
+        
         past_key_values = self.code_prefix(code_prefix_tokens, code_prefix_matrix)
         # bsz, seqlen, _ = past_key_values.shape
 
@@ -241,7 +251,13 @@ class Seq2Seq4UniXcoder_e2d(nn.Module):
             self.n_head = config.num_attention_heads
             self.n_embd = config.hidden_size // config.num_attention_heads
             # add prefix encoder
-            self.code_prefix = CodeGraphPrefix(self.config, embeddings_weight,self.args)
+            if self.args.prefix_tuning == 'pass_tuning':
+                from GAT_prefix import CodeGraphPrefix
+                self.code_prefix = CodeGraphPrefix(self.config, embeddings_weight,self.args)
+            elif self.args.prefix_tuning == 'GCN_tuning':
+                from GCN_prefix import CodeGraphPrefix
+                self.code_prefix = CodeGraphPrefix(self.config, embeddings_weight,self.args)
+            
             if self.args.model_name in ['t5','codet5']:
                 self.dropout = torch.nn.Dropout(config.dropout_rate)
             elif self.args.model_name in ['bart','plbart']:
@@ -252,6 +268,11 @@ class Seq2Seq4UniXcoder_e2d(nn.Module):
     def get_prompt(self, batch_size):
         code_prefix_tokens = self.code_prefix_tokens.unsqueeze(0).expand(batch_size, -1)
         code_prefix_matrix = self.code_prefix_matrix.unsqueeze(0).expand(batch_size, -1, -1)
+        if self.args.adjcency_mode=='fully-connected':
+            code_prefix_matrix = torch.where(code_prefix_matrix >0,  torch.ones_like(code_prefix_matrix), torch.zeros_like(code_prefix_matrix))
+        elif self.args.adjcency_mode=='sast':
+            code_prefix_matrix = torch.where(code_prefix_matrix ==1, torch.ones_like(code_prefix_matrix), torch.zeros_like(code_prefix_matrix)) 
+        
         past_key_values = self.code_prefix(code_prefix_tokens, code_prefix_matrix)
         # bsz, seqlen, _ = past_key_values.shape
 
@@ -415,7 +436,13 @@ class Seq2Seq4UniXcoder_completion(nn.Module):
             self.n_head = config.num_attention_heads
             self.n_embd = config.hidden_size // config.num_attention_heads
             # add prefix encoder
-            self.code_prefix = CodeGraphPrefix(self.config, embeddings_weight,self.args)
+            if self.args.prefix_tuning == 'pass_tuning':
+                from GAT_prefix import CodeGraphPrefix
+                self.code_prefix = CodeGraphPrefix(self.config, embeddings_weight,self.args)
+            elif self.args.prefix_tuning == 'GCN_tuning':
+                from GCN_prefix import CodeGraphPrefix
+                self.code_prefix = CodeGraphPrefix(self.config, embeddings_weight,self.args)
+            
             if self.args.model_name in ['t5','codet5']:
                 self.dropout = torch.nn.Dropout(config.dropout_rate)
             elif self.args.model_name in ['bart','plbart']:
@@ -426,6 +453,11 @@ class Seq2Seq4UniXcoder_completion(nn.Module):
     def get_prompt(self, batch_size):
         code_prefix_tokens = self.code_prefix_tokens.unsqueeze(0).expand(batch_size, -1)
         code_prefix_matrix = self.code_prefix_matrix.unsqueeze(0).expand(batch_size, -1, -1)
+        if self.args.adjcency_mode=='fully-connected':
+            code_prefix_matrix = torch.where(code_prefix_matrix >0,  torch.ones_like(code_prefix_matrix), torch.zeros_like(code_prefix_matrix))
+        elif self.args.adjcency_mode=='sast':
+            code_prefix_matrix = torch.where(code_prefix_matrix ==1, torch.ones_like(code_prefix_matrix), torch.zeros_like(code_prefix_matrix)) 
+        
         past_key_values = self.code_prefix(code_prefix_tokens, code_prefix_matrix)
         # bsz, seqlen, _ = past_key_values.shape
 
@@ -594,7 +626,13 @@ class Seq2Seq4UniXcoder_generation(nn.Module):
             self.n_head = config.num_attention_heads
             self.n_embd = config.hidden_size // config.num_attention_heads
             # add prefix encoder
-            self.code_prefix = CodeGraphPrefix(self.config, embeddings_weight,self.args)
+            if self.args.prefix_tuning == 'pass_tuning':
+                from GAT_prefix import CodeGraphPrefix
+                self.code_prefix = CodeGraphPrefix(self.config, embeddings_weight,self.args)
+            elif self.args.prefix_tuning == 'GCN_tuning':
+                from GCN_prefix import CodeGraphPrefix
+                self.code_prefix = CodeGraphPrefix(self.config, embeddings_weight,self.args)
+            
             if self.args.model_name in ['t5','codet5']:
                 self.dropout = torch.nn.Dropout(config.dropout_rate)
             elif self.args.model_name in ['bart','plbart']:
@@ -605,6 +643,11 @@ class Seq2Seq4UniXcoder_generation(nn.Module):
     def get_prompt(self, batch_size):
         code_prefix_tokens = self.code_prefix_tokens.unsqueeze(0).expand(batch_size, -1)
         code_prefix_matrix = self.code_prefix_matrix.unsqueeze(0).expand(batch_size, -1, -1)
+        if self.args.adjcency_mode=='fully-connected':
+            code_prefix_matrix = torch.where(code_prefix_matrix >0,  torch.ones_like(code_prefix_matrix), torch.zeros_like(code_prefix_matrix))
+        elif self.args.adjcency_mode=='sast':
+            code_prefix_matrix = torch.where(code_prefix_matrix ==1, torch.ones_like(code_prefix_matrix), torch.zeros_like(code_prefix_matrix)) 
+        
         past_key_values = self.code_prefix(code_prefix_tokens, code_prefix_matrix)
         # bsz, seqlen, _ = past_key_values.shape
 

@@ -217,7 +217,8 @@ class Example(object):
                  task='',
                  sub_task='',
                  ast=None,
-                 raw_code=None
+                 raw_code=None,
+                 raw_line=None,
                  ):
         self.idx = idx
         self.source = source
@@ -227,6 +228,7 @@ class Example(object):
         self.sub_task = sub_task
         self.ast = ast
         self.raw_code = raw_code
+        self.raw_line = raw_line
 
 
 class CloneExample(object):
@@ -237,13 +239,15 @@ class CloneExample(object):
                  code2=None,
                  label=None,
                  url1=None,
-                 url2=None
+                 url2=None,
+                 raw_line=None,
                  ):
         self.source = code1
         self.target = code2
         self.label = label
         self.url1 = url1
         self.url2 = url2
+        self.raw_line = raw_line
 
 
 def read_translate_examples(filename, data_num):
@@ -262,6 +266,7 @@ def read_translate_examples(filename, data_num):
                     idx=idx,
                     source=src,
                     target=trg,
+                    raw_line=trg,
                 )
             )
             idx += 1
@@ -285,6 +290,7 @@ def read_refine_examples(filename, data_num):
                     idx=idx,
                     source=line1.strip(),
                     target=line2.strip(),
+                    raw_line=line1,
                 )
             )
             idx += 1
@@ -299,12 +305,14 @@ def read_generate_examples(filename, data_num):
 
     with open(filename, encoding="utf-8") as f:
         for idx, line in enumerate(tqdm(f,desc="Read examples")):
+            old_line = line
             x = json.loads(line)
             examples.append(
                 Example(
                     idx=idx,
                     source=x["nl"].strip(),
-                    target=x["code"].strip()
+                    target=x["code"].strip(),
+                    raw_line=old_line,
                 )
             )
             idx += 1
@@ -318,6 +326,7 @@ def read_summarize_examples(filename, data_num):
     examples = []
     with open(filename, encoding="utf-8") as f:
         for idx, line in enumerate(tqdm(f,desc="Read examples")):
+            old_line = line
             line = line.strip()
             js = json.loads(line)
             if 'idx' not in js:
@@ -331,7 +340,8 @@ def read_summarize_examples(filename, data_num):
                     idx=idx,
                     source=code,
                     target=nl,
-                    raw_code=js['code']
+                    raw_code=js['code'],
+                    raw_line=old_line,
                 )
             )
             if idx + 1 == data_num:
@@ -344,6 +354,7 @@ def read_defect_examples(filename, data_num):
     examples = []
     with open(filename, encoding="utf-8") as f:
         for idx, line in enumerate(tqdm(f,desc="Read examples")):
+            old_line=line
             line = line.strip()
             js = json.loads(line)
 
@@ -352,7 +363,8 @@ def read_defect_examples(filename, data_num):
                 Example(
                     idx=js['idx'],
                     source=code,
-                    target=js['target']
+                    target=js['target'],
+                    raw_line=old_line,
                 )
             )
             if idx + 1 == data_num:
@@ -378,6 +390,7 @@ def read_clone_examples(filename, data_num):
     with open(index_filename, encoding="utf-8") as f:
         idx = 0
         for line in tqdm(f,desc="Read examples"):
+            old_line = line
             line = line.strip()
             url1, url2, label = line.split('\t')
             if url1 not in url_to_code or url2 not in url_to_code:
@@ -387,7 +400,7 @@ def read_clone_examples(filename, data_num):
             else:
                 label = 1
             data.append(CloneExample(
-                url_to_code[url1], url_to_code[url2], label, url1, url2))
+                url_to_code[url1], url_to_code[url2], label, url1, url2, old_line))
             idx += 1
             if idx == data_num:
                 break
@@ -450,7 +463,7 @@ def load_and_cache_gen_data(args, filename, pool, tokenizer, split_tag, only_src
                           for idx, example in enumerate(examples)]
         f_=partial(convert_examples_to_features,args)
         features = pool.map(f_, tqdm(
-            tuple_examples, total=len(tuple_examples)))
+            tuple_examples, total=len(tuple_examples),desc="Convert examples to features"))
         all_source_ids = torch.tensor(
             [f.source_ids for f in features], dtype=torch.long)
         if split_tag == 'test' or only_src:
@@ -525,7 +538,7 @@ def load_and_cache_gen_data(args, filename, pool, tokenizer, split_tag, only_src
 #                 f_=partial(convert_examples_to_features,args)
 #                 if args.data_num == -1:
 #                     features = pool.map(f_, tqdm(
-#                         tuple_examples, total=len(tuple_examples)))
+#                         tuple_examples, total=len(tuple_examples),desc="Convert examples to features"))
 #                 else:
 #                     features = [f_(
 #                         x) for x in tuple_examples]
@@ -548,13 +561,13 @@ def load_and_cache_gen_data(args, filename, pool, tokenizer, split_tag, only_src
 
 def get_graph_metadata(args, tokenizer):
     '''
-    read prefix code from args.prefix_dir
+    read prefix code from args.old_prefix_dir
     load to examples(raw code) and data(after encode to ids)
     GraphMetadata convert it to token_ids and distance_list
-    return token_ids and distance_list for GNN init
+    return token_ids and distance_list for GAT init
     '''
     filename = get_filenames(
-                args.prefix_dir, args.task, args.sub_task, 'prefix')
+                args.old_prefix_dir, args.task, args.sub_task, 'prefix')
     # examples, data = load_and_cache_clone_data(args, filename, pool, tokenizer, 'train') 
     if args.task == 'clone':
         # examples = read_examples(filename, args.data_num, args.task)
@@ -580,7 +593,7 @@ def get_graph_metadata(args, tokenizer):
             data= torch.tensor([feature.source_ids], dtype=torch.long)
             graphmetadata=GraphMetadata(args, examples, data, 'c')
             # if args.prefix_token_level == 'token':
-            #     tokens_ids=tokenizer.encode(js['func'], max_length=args.gnn_token_num, padding='max_length', truncation=True)
+            #     tokens_ids=tokenizer.encode(js['func'], max_length=args.gat_token_num, padding='max_length', truncation=True)
             #     print(tokens_list)
             #     weight_matrix=distance_list[0]
             #     return tokens_ids#,weight_matrix
@@ -637,11 +650,11 @@ def get_graph_metadata(args, tokenizer):
     tokens_ids=tokenizer.convert_tokens_to_ids(tokens_list[0].values())
     distance_list=graphmetadata.get_token_distance(args, leaves, ast_list, sast_list, 'shortest_path_length')[0]
     assert len(tokens_ids)==distance_list.shape[0]
-    if len(tokens_ids)>=args.gnn_token_num:
-        return tokens_ids[:args.gnn_token_num], distance_list[:args.gnn_token_num,:args.gnn_token_num]
+    if len(tokens_ids)>=args.gat_token_num:
+        return tokens_ids[:args.gat_token_num], distance_list[:args.gat_token_num,:args.gat_token_num]
     else:
-        distance_list=np.pad(distance_list,((0,args.gnn_token_num-len(tokens_ids)),(0,args.gnn_token_num-len(tokens_ids))),'constant')
-        tokens_ids=tokens_ids+[tokenizer.pad_token_id]*(args.gnn_token_num-len(tokens_ids))
+        distance_list=np.pad(distance_list,((0,args.gat_token_num-len(tokens_ids)),(0,args.gat_token_num-len(tokens_ids))),'constant')
+        tokens_ids=tokens_ids+[tokenizer.pad_token_id]*(args.gat_token_num-len(tokens_ids))
         assert len(tokens_ids)==distance_list.shape[0]
         return tokens_ids, distance_list
         # token_ids = tokenizer.convert_tokens_to_ids(tokens_list) 
@@ -652,9 +665,61 @@ def get_graph_metadata(args, tokenizer):
         #     token_ids = token_ids[:args.max_source_length]
         # return token_ids
         
+def get_retriever_metadata(args,examples, data):
+    '''
+    read prefix code from args.old_prefix_dir
+    load to examples(raw code) and data(after encode to ids)
+    GraphMetadata convert it to token_ids and distance_list
+    return token_ids and distance_list for GAT init
+    '''
+    
+    pool=multiprocessing.Pool(args.cpu_count)
+    args.lang = get_lang_by_task(args.task, args.sub_task)
+    graphmetadata=GraphMetadata(args, examples, data, args.lang)
+    
+    ast_list, sast_list, tokens_list, tokens_type_list, leaves =graphmetadata.get_ast_and_token(graphmetadata.examples, graphmetadata.parser, graphmetadata.lang)
+    return tokens_list, tokens_type_list
+    # tokens_ids=tokenizer.convert_tokens_to_ids(tokens_list[0].values())
+    # distance_list=graphmetadata.get_token_distance(args, leaves, ast_list, sast_list, 'shortest_path_length')[0]
+    # assert len(tokens_ids)==distance_list.shape[0]
+    # if len(tokens_ids)>=args.gat_token_num:
+    #     return tokens_ids[:args.gat_token_num], distance_list[:args.gat_token_num,:args.gat_token_num]
+    # else:
+    #     distance_list=np.pad(distance_list,((0,args.gat_token_num-len(tokens_ids)),(0,args.gat_token_num-len(tokens_ids))),'constant')
+    #     tokens_ids=tokens_ids+[tokenizer.pad_token_id]*(args.gat_token_num-len(tokens_ids))
+    #     assert len(tokens_ids)==distance_list.shape[0]
+    #     return tokens_ids, distance_list
+    #     # token_ids = tokenizer.convert_tokens_to_ids(tokens_list) 
+    #     # if len(token_ids)<=args.max_source_length:
+    #     #     padding_length = args.max_source_length - len(token_ids)
+    #     #     token_ids += [tokenizer.pad_token_id]*padding_length
+    #     # else:
+    #     #     token_ids = token_ids[:args.max_source_length]
+    #     # return token_ids
 
+def get_retrieve_id_list(args, examples, data, k=1):
+    tokens_list, tokens_type_list = get_retriever_metadata(args,examples, data)
+    from retriever.BM25 import BM25
+    bm25 = BM25([i.values() for i in tokens_type_list])
+    freq_types=bm25.get_freq_word(15)
+    print("freq_token_types:{} for task:{}, lang:{}".format(freq_types,args.task, args.lang ))
+    return bm25.get_top_k_related_ids(freq_types, k)
 
-
+def retrieve2file(args, examples, data, k=1):
+    print('\n Retrieving...')
+    if args.retriever_mode == 'random':
+        retrieve_id_list = np.random.choice(len(examples), k, replace=False)
+    elif args.retriever_mode == 'retrieve':
+        retrieve_id_list = get_retrieve_id_list(args, examples, data, k)
+    filename = get_filenames(
+                args.old_prefix_dir, args.task, args.sub_task, 'prefix')
+    with open(filename,'w',encoding="utf-8") as f:
+        for id_ in retrieve_id_list:
+            print("retrieve case:\n")
+            print(examples[id_].source,'\n')
+            print('Writing retrieve file...')
+            f.write(examples[id_].raw_line+'\n')
+    
 def get_distance(args, tokenizer):
     pool=multiprocessing.Pool(args.cpu_count)
     examples, data = load_and_cache_clone_data(args, args.train_filename, pool, tokenizer, 'train') 
@@ -767,7 +832,7 @@ def load_and_cache_clone_data(args, filename, pool, tokenizer, split_tag, is_sam
                         for idx, example in enumerate(examples)]
         f_=partial(convert_clone_examples_to_features,args)
         features = pool.map(f_, tqdm(
-            tuple_examples, total=len(tuple_examples)))
+            tuple_examples, total=len(tuple_examples),desc="Convert examples to features"))
         
         # if args.sub_task == "POJ":
         #     train_dataset = TextDataset_POJ104(features, args)
@@ -810,7 +875,7 @@ def load_and_cache_defect_data(args, filename, pool, tokenizer, split_tag, is_sa
             logger.info("Create cache data into %s", cache_fn)
         tuple_examples = [(example, idx, tokenizer, args) for idx, example in enumerate(examples)]
         f_=partial(convert_defect_examples_to_features,args)
-        features = pool.map(f_, tqdm(tuple_examples, total=len(tuple_examples)))
+        features = pool.map(f_, tqdm(tuple_examples, total=len(tuple_examples),desc="Convert examples to features"))
         # if args.sub_task == "POJ":
         #     train_dataset = TextDataset_POJ104(features, args)
         #     return train_dataset, train_dataset

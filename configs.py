@@ -88,20 +88,24 @@ def add_args(parser):
     parser.add_argument('--few_shot',  default=-1, type=int,
                     help="use k shot, -1 for full data")
 
-    parser.add_argument("--prefix_tuning", default=0, type=int,
-                    help="parameter-efficient GNN prefix tuning, 0 for not tuning, 1 for tuning")
+    parser.add_argument("--prefix_tuning", default=False, type=str,
+                    help="parameter-efficient prefix tuning, pass_tuning refers to GAT prefix,\
+                    GCN refers to GCN prefix,prefix_tuning refers to MLP prefix",\
+                        choices=['pass_tuning','GCN' ,'prefix_tuning', 'False'])
     parser.add_argument("--adapter_tuning", default=0, type=int,
                     help="parameter-efficient adapter tuning, 0 for not tuning, 1 for tuning")#only support codet5 currently
     parser.add_argument("--bitfit", default=0, type=int,
                     help="parameter-efficient bitfit, 0 for not tuning, 1 for tuning")
     
 
+    parser.add_argument("--old_prefix_dir", default='old_data_prefix', type=str,
+                        help="directory to score graphmetadata.txt")
     parser.add_argument("--prefix_dir", default='data_prefix', type=str,
                         help="directory to score graphmetadata.txt")
     parser.add_argument("--prefix_token_level", default='token', type=str,
                         help="how to parse initial prefix code, choose 'token' or 'subtoken' level of ids/init_dist_weight")
-    parser.add_argument("--gnn_token_num", default=32, type=int,
-                        help="number of tokens to use for gnn, must be divided with max_source_length in encoder2decoder with no remainder")
+    parser.add_argument("--gat_token_num", default=32, type=int,
+                        help="number of tokens to use for gat, must be divided with max_source_length in encoder2decoder with no remainder")
     parser.add_argument("--fix_model_param", default=1, type=int,
                     help="when prefix_tuning, fix model param or not ")
     
@@ -115,6 +119,14 @@ def add_args(parser):
                     help="map_description or not ")
     parser.add_argument("--prefix_dropout", default=0.0, type=float,
                         help="prefix_dropout.")
+    parser.add_argument("--retriever_mode", default='retrieve', type=str,
+                        help="how to retrieve code piece to init GAT, choose from random or retrieve",
+                        choices=['random', 'retrieve','old'])
+    parser.add_argument("--qiangtamadeka", default=0, type=int,
+                    help="qiangtamadeka or not ")
+    parser.add_argument("--adjcency_mode", default='sast', type=str,
+                    help="how code distance matrix input as GAT adjcency matrix",choices=['fully-connected','sast'])
+    #######################注意改成真随机！！！！！！
     args = parser.parse_args()
     return args
 
@@ -148,7 +160,8 @@ def set_seed(args):
 
 
 def set_hyperparas(args):
-    # args.few_shot = 512
+    if args.qiangtamadeka:
+        args.few_shot = -1
 
     args.adam_epsilon = 1e-8
     args.beam_size = 10
@@ -223,6 +236,10 @@ def set_hyperparas(args):
             else:
                 args.batch_size = args.batch_size // 2
         # args.batch_size = 2#####################################################
+        if args.qiangtamadeka:
+            args.batch_size = 8
+            args.num_train_epochs = 10000
+
         # args.batch_size = 128 if args.model_name not in ['t5', 'codet5'] else 16
         args.warmup_steps = 1000
         args.dev_batch_size = args.batch_size * 1 if not torch.cuda.is_available() else args.batch_size//torch.cuda.device_count()*1

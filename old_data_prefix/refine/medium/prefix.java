@@ -1,0 +1,1 @@
+protected void METHOD_1 ( TYPE_1 context ) throws java.io.IOException , TYPE_2 { if ( VAR_1 ) { long VAR_2 = 0 ; for ( TYPE_3 VAR_3 : VAR_4 . values ( ) ) { VAR_2 += VAR_3 . METHOD_2 ( ) ; } double VAR_5 = ( VAR_2 == 0 ) ? 0 : ( ( double ) ( VAR_6 ) ) / VAR_2 ; METHOD_3 ( context ) ; TYPE_4 . METHOD_4 ( context . METHOD_5 ( ) , new TYPE_5 ( VAR_7 ) , VAR_4 , VAR_8 , VAR_5 ) ; } }

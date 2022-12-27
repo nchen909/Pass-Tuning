@@ -15,7 +15,7 @@ class Model(PushToHubFriendlyModel):
         """The prefix-tuning code"""
 
         self.preseqlen = args.max_source_length
-        self.mid_dim = args.gnn_token_num
+        self.mid_dim = args.gat_token_num
 
         print("prefix-tuning sequence length is {}.".format(self.preseqlen))
 

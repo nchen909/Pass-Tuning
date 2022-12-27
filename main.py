@@ -22,7 +22,7 @@ from evaluator.bleu import _bleu
 import sys
 from sklearn.metrics import recall_score, precision_score, f1_score
 from tree_sitter import Language, Parser
-
+from utils import retrieve2file
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
                     datefmt='%m/%d/%Y %H:%M:%S',
                     level=logging.INFO)
@@ -318,6 +318,11 @@ def main():
             train_examples, train_data = load_and_cache_defect_data(args, args.train_filename, pool, tokenizer, 'train')
         elif args.task in ['clone']:
             train_examples, train_data = load_and_cache_clone_data(args, args.train_filename, pool, tokenizer, 'train')
+        if 0 and args.prefix_tuning:
+            if args.retriever_mode in ['random', 'retrieve']:
+                retrieve2file(args, train_examples, train_data)
+        elif args.retriever_mode == 'old':
+            args.prefix_dir = args.old_prefix_dir
 
         train_sampler = RandomSampler(
             train_data) if args.local_rank == -1 else DistributedSampler(train_data)
@@ -562,6 +567,14 @@ def main():
                             source_ids = batch[0].to(args.device)        
                             labels = batch[1].to(args.device) 
                             loss, logits = model(source_ids, labels)
+                        elif args.model_name in ['t5','codet5','bart','plbart']:
+                            batch = tuple(t.to(args.device) for t in batch)
+                            source_ids, labels = batch
+                            outputs = model(source_ids, labels)
+                            if isinstance(outputs,dict):
+                                loss=outputs['loss']
+                            else:
+                                loss, logits = outputs
                         else:
                             batch = tuple(t.to(args.device) for t in batch)
                             source_ids, labels = batch
@@ -664,6 +677,14 @@ def main():
                             source_ids = batch[0].to(args.device)        
                             labels = batch[1].to(args.device) 
                             loss, logits = model(source_ids, labels)
+                        elif args.model_name in ['t5','codet5','bart','plbart']:
+                            batch = tuple(t.to(args.device) for t in batch)
+                            source_ids, labels = batch
+                            outputs = model(source_ids, labels=labels)
+                            if isinstance(outputs,dict):
+                                loss=outputs['loss']
+                            else:
+                                loss, logits = outputs
                         else:
                             batch = tuple(t.to(args.device) for t in batch)#shape: (2*(batch_size, seq_len))
                             source_ids, labels = batch #[batch,1024] [batch]

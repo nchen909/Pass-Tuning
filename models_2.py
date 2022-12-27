@@ -7,7 +7,7 @@ from transformers import AutoTokenizer, AutoModel, AutoConfig, T5ForConditionalG
 
 import logging
 import sys
-from code_prefix import CodeGraphPrefix
+from GAT_prefix import CodeGraphPrefix
 #import codecs
 #sys.stdout = codecs.getwriter("utf-8")(sys.stdout.detach())
 logger = logging.getLogger(__name__)

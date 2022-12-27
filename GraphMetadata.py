@@ -2,6 +2,7 @@ from tree_sitter import Language, Parser
 import numpy as np
 import networkx as nx
 import sys
+import tqdm
 sys.setrecursionlimit(5000)
 # depth-first traverse
 def traverse( cursor, G, came_up, node_tag, node_sum, parent_dict):
@@ -53,6 +54,8 @@ class GraphMetadata():
         self.parser = parser
 
     def get_sast(self,T, leaves, tokens_dict, tokens_type_dict):
+        # print("len(leaves), len(tokens_dict), len(tokens_type_dict)", len(leaves), len(tokens_dict), len(tokens_type_dict))
+        
         # add subtoken edges and Data flow edges to T
         T = nx.Graph(T)
         subtoken_edges = []
@@ -60,8 +63,8 @@ class GraphMetadata():
         identifier_dict = {}
         i = 0
         for leaf in leaves:
-            token = tokens_dict[leaf]
             token_type = tokens_type_dict[leaf]
+            token = tokens_dict[leaf]
             if token_type == 'identifier':
                 if token not in identifier_dict:
                     identifier_dict[token] = leaf
@@ -93,30 +96,38 @@ class GraphMetadata():
         sast_list = []
         tokens_list = []
         tokens_type_list = []
-        for example in examples:
+        for example in examples:#tqdm(examples,desc="Get ast, tokens and token types"):
             example_code = example.source
             tree = parser.parse(bytes(example_code, 'utf-8'))
             G = nx.Graph()
             cursor = tree.walk()
-            traverse(cursor, G, came_up=False, node_tag=0, node_sum=0, parent_dict={})
-
+            try:
+                traverse(cursor, G, came_up=False, node_tag=0, node_sum=0, parent_dict={})
+            except RecursionError as e:
+                continue
             ast_list.append(G)
+            
             T = nx.dfs_tree(G, 0)
             leaves = [x for x in T.nodes() if T.out_degree(x) ==
                     0 and T.in_degree(x) == 1]
             tokens_dict = {}
             tokens_type_dict = {}
-            for leaf in leaves:
+            for leaf in leaves[:]:
                 feature = G.nodes[leaf]['features']
-                if feature.type != 'comment':
+                if feature.type == 'comment':
+                    leaves.remove(leaf)
+                    T.remove_node(leaf)
+                else:
                     start = feature.start_point
                     end = feature.end_point
                     token = self.index_to_code_token([start, end], example_code)
-                    print('leaf: ', leaf, 'start: ', start,
-                        ', end: ', end, ', token: ', token)
+                    # print('leaf: ', leaf, 'start: ', start,
+                    #     ', end: ', end, ', token: ', token)
                     tokens_dict[leaf] = token
                     tokens_type_dict[leaf] = feature.type
+            assert len(leaves) == len(tokens_dict)
             new_T = self.get_sast(T, leaves, tokens_dict, tokens_type_dict)
+            
             sast_list.append(new_T)
             tokens_list.append(tokens_dict)
             tokens_type_list.append(tokens_type_dict)
@@ -124,6 +135,8 @@ class GraphMetadata():
         print('tokens list length', len(tokens_list))
         print('tokens 0: ')
         print(tokens_list[0])
+        print('tokens_type_list 0: ')
+        print(tokens_type_list[0])
         return ast_list, sast_list, tokens_list, tokens_type_list, leaves
     def get_token_distance(self, args, leaves, ast_list, sast_list, distance_metric='shortest_path_length'):  # 4min
         print('get token distance')

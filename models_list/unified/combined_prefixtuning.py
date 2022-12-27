@@ -183,7 +183,7 @@ class Model(PushToHubFriendlyModel):
         """The Multi-task prefix-tuning code"""
 
         self.preseqlen = args.max_source_length
-        self.mid_dim = args.gnn_token_num
+        self.mid_dim = args.gat_token_num
 
         # need to mention, prefix length is the "task_name.split('_')[-1]",
         # which means the name is format as "'name' + '_' + 'prefix length'"

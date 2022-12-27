@@ -7,7 +7,7 @@ from transformers import AutoTokenizer, AutoModel, AutoConfig, T5ForConditionalG
 from transformers import PLBartForConditionalGeneration
 import logging
 import sys
-from code_prefix import CodeGraphPrefix
+# from GAT_prefix import CodeGraphPrefix
 from utils import get_graph_metadata
 from models_list.T5ForConditionalGeneration_Prefix import T5ForConditionalGeneration_Prefix
 from models_list.T5ForConditionalGeneration_Prefix_2 import T5ForConditionalGeneration_Prefix_2
@@ -163,7 +163,7 @@ def bulid_or_load_gen_model(args):
             
     elif args.model_name in ['t5', 'codet5','bart','plbart']:
         if hasattr(model_class,'from_pretrained'):
-            model = model_class.from_pretrained(checkpoint, output_attentions=True, args=args, tokenizer=tokenizer)
+            model = model_class.from_pretrained(checkpoint, output_attentions=True)#, args=args, tokenizer=tokenizer
         else:# a wrapper model class
             args.pretrained_model_name_or_path= checkpoint
             model = model_class(args=args)
@@ -196,7 +196,8 @@ def bulid_or_load_cls_model(args):
     # checkpoint = MODEL_CHECKPOINTS[args.model_name]
     checkpoint = os.path.join(args.huggingface_locals, MODEL_LOCALS[args.model_name])
     if args.prefix_tuning:
-        config_class, model_class, tokenizer_class = MODEL_CLASSES[args.model_name]
+        # config_class, model_class, tokenizer_class = MODEL_CLASSES[args.model_name]
+        config_class, model_class, tokenizer_class = MODEL_CLASSES_PLG_PREFIX[args.model_name]
     elif args.adapter_tuning:
         config_class, model_class, tokenizer_class = MODEL_CLASSES_PLG_ADAPTER[args.model_name]
     elif args.bitfit:
@@ -216,7 +217,7 @@ def bulid_or_load_cls_model(args):
         else:# a wrapper model class
             args.pretrained_model_name_or_path= checkpoint
             model = model_class(args=args)
-    # if not args.adapter_tuning:
+    # if not args.adapter_tuning and not args.bitfit:
     if args.task == 'defect':
         model = DefectModel(model, config, tokenizer, args)
     elif args.task == 'clone':
@@ -224,8 +225,18 @@ def bulid_or_load_cls_model(args):
         model = CloneModel(model, config, tokenizer, args)
 
     if args.prefix_tuning:
-        logger.info("Finish loading model [%s] parameters from %s", get_model_size(
-            model.code_prefix.gat_layer), args.model_name)
+        if hasattr(model,'code_prefix'):
+            logger.info("Finish loading model [%s] parameters from %s", get_model_size(
+                model.code_prefix.gat_layer), args.model_name)
+        elif hasattr(model,'knowledge_trans'):
+            logger.info("Finish loading model [%s] parameters from %s", get_model_size(
+                model.knowledge_trans), args.model_name)
+        elif hasattr(model,'pretrain_model') and hasattr(model.pretrain_model,'adapter'):
+            logger.info("Finish loading model [%s] parameters from %s", get_model_size(
+                model.pretrain_model.adapter), args.model_name)
+        else:
+            logger.info("Finish loading model [%s] parameters from %s", get_model_size(
+                model), args.model_name)
     else:
         logger.info("Finish loading model [%s] parameters from %s", get_model_size(
             model), args.model_name)
