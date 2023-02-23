@@ -344,7 +344,7 @@ def main():
         if not args.is_clone_sample and args.task in ['clone']:
             save_steps = save_steps//20
         if args.task in ['defect']:
-            save_steps = save_steps//4#4
+            save_steps = save_steps//1#4
         scheduler = get_linear_schedule_with_warmup(optimizer,
                                                     num_warmup_steps=int(args.warmup_steps) if args.warmup_steps >= 1 else num_train_optimization_steps * args.warmup_steps,
                                                     num_training_steps=num_train_optimization_steps)

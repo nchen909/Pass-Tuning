@@ -1,6 +1,7 @@
-WORKDIR="/data/pretrain-attention/CodePrompt"
+#WORKDIR="/data/pretrain-attention/CodePrompt"
 #WORKDIR="/wjn/projects/pe_code/CodePrompt"
-HUGGINGFACE_LOCALS="/data/huggingface_models/"
+WORKDIR="/remote-home/zyyin/Tmp/cn/CodePrompt"
+HUGGINGFACE_LOCALS="/remote-home/zyyin/Tmp/cn/CodePrompt/data/huggingface_models/"
 #HUGGINGFACE_LOCALS="/wjn/pre-trained-lm/"
 export PYTHONPATH=$WORKDIR
 

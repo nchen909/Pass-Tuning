@@ -1,7 +1,11 @@
-WORKDIR="/data/pretrain-attention/CodePrompt"
+# WORKDIR="/data/pretrain-attention/CodePrompt"
+# #WORKDIR="/wjn/projects/pe_code/CodePrompt"
+# HUGGINGFACE_LOCALS="/data/huggingface_models/"
+# #HUGGINGFACE_LOCALS="/wjn/pre-trained-lm/"
+#WORKDIR="/data/pretrain-attention/CodePrompt"
 #WORKDIR="/wjn/projects/pe_code/CodePrompt"
-HUGGINGFACE_LOCALS="/data/huggingface_models/"
-#HUGGINGFACE_LOCALS="/wjn/pre-trained-lm/"
+WORKDIR="/remote-home/zyyin/Tmp/cn/CodePrompt"
+HUGGINGFACE_LOCALS="/remote-home/zyyin/Tmp/cn/CodePrompt/data/huggingface_models/"
 export PYTHONPATH=$WORKDIR
 
 
@@ -14,15 +18,15 @@ SUB_TASK=${3:-none}
 
 DATA_NUM=-1
 MODEL_DIR=save_models
-SUMMARY_DIR=tensorboard
+SUMMARY_DIR="tensorboard"
 FULL_MODEL_TAG=${MODEL_NAME}
 
 if [[ ${SUB_TASK} == none ]]; then
-  OUTPUT_DIR=${MODEL_DIR}/${TASK}/${FULL_MODEL_TAG}
+  OUTPUT_DIR=${MODEL_DIR}/${TASK}/${FULL_MODEL_TAG}/"1e-4"
   RES_DIR=results/${TASK}/${FULL_MODEL_TAG}
   RES_FN=results/${TASK}/${FULL_MODEL_TAG}.txt
 else
-  OUTPUT_DIR=${MODEL_DIR}/${TASK}/${SUB_TASK}/${FULL_MODEL_TAG}
+  OUTPUT_DIR=${MODEL_DIR}/${TASK}/${SUB_TASK}/${FULL_MODEL_TAG}/"1e-4"
   RES_DIR=results/${TASK}/${SUB_TASK}/${FULL_MODEL_TAG}
   RES_FN=results/${TASK}/${SUB_TASK}/${FULL_MODEL_TAG}.txt
 fi

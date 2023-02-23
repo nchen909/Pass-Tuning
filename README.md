@@ -15,6 +15,17 @@ cp evaluator/CodeBLEU/parser/my-languages.so build/
 bash get_models.sh
 ```
 
+for cuda11.0+,
+
+```
+pip install torch==1.7.0+cu110 torchvision==0.8.1+cu110 torchaudio===0.7.0 -f https://download.pytorch.org/whl/torch_stable.html
+```
+
+for torch geometric,
+
+https://pytorch-geometric.com/whl/torch-1.6.0%2Bcu101.html
+
+
 ## Preparing data
 
 The dataset comes from [CodeXGLUE](https://github.com/microsoft/CodeXGLUE).
