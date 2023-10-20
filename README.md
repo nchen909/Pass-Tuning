@@ -1,4 +1,6 @@
-# CodePrompt
+# Pass-Tuning: Towards Structure-Aware Parameter-Efficient Tuning for Code Representation Learning
+
+This is the repository of EMNLP 2023 paper Pass-Tuning: Towards Structure-Aware Parameter-Efficient Tuning for Code Representation Learning.
 
 ## Environment & Preparing
 
@@ -76,7 +78,7 @@ bash run_multi_task.sh
 
 ## 所有消融脚本
 
-### parameter_efficient消融（只t5&bart）
+### parameter_efficient消融
 
 run.sh（full finetuning）
 
@@ -95,7 +97,3 @@ run_pass_tuning.sh (GAT)
 ### 初始化
 
 run_random_selection.sh (without retriving)
-
-### 或许要调的
-
-gat_token_num
