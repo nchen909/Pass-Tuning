@@ -2,6 +2,14 @@
 
 This is the repository of EMNLP 2023 paper Pass-Tuning: Towards Structure-Aware Parameter-Efficient Tuning for Code Representation Learning.
 
+## Introduction
+
+We propose a structure-aware parameter-efficient tuning method for code representation learning, using a plug-and-play GAT module to exploit code structural information and can serve as an alternative to full fine-tuning.
+
+![Pass-Tuning-Overview](https://osspicgo.oss-cn-shanghai.aliyuncs.com/img/Pass-Tuning-Overview.pdf)
+
+More details are provided in our EMNLP'23 paper and [our paper](https://aclanthology.org/2023.findings-emnlp.42/).
+
 ## Environment & Preparing
 
 ```shell
@@ -65,7 +73,7 @@ bash run_multi_task.sh
 
   `SUB_TASK` can be in picture below
 
-[![Finetuning tasks](https://pic.mathskiller909.com/img/20221027202855.png?x-oss-process=style/nchen909)](https://osspicgo.oss-cn-shanghai.aliyuncs.com/img/20221027202855.png)
+![Finetuning tasks](https://osspicgo.oss-cn-shanghai.aliyuncs.com/img/20221027202855.png)
 
 | Category | Dataset   | Task              | Sub_task(LANG)                                     | Type           | Category | Description                                                                                                                  |
 | -------- | --------- | ----------------- | -------------------------------------------------- | -------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------- |
@@ -99,3 +107,16 @@ run_pass_tuning.sh (GAT)
 ### Initialization
 
 run_random_selection.sh (without retriving)
+
+## Citation
+
+Please consider citing us if you find this repository useful.👇
+
+```bibtex
+@inproceedings{chen2023passtuning,
+  title={Pass-Tuning: Towards Structure-Aware Parameter-Efficient Tuning for Code Representation Learning},
+  author={Chen, Nuo and Sun, Qiushi and Wang, Jianing and Li, Xiang and Gao, Ming},
+  booktitle = {EMNLP},
+  year={2023}
+}
+```
