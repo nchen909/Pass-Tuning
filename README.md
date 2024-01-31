@@ -45,7 +45,7 @@ rm data.zip
 
 Direct WORKDIR, HUGGINGFACE_LOCALS in run.sh, run_few_shot.sh to your path.
 
-## Finetune tasks
+## Finetuning tasks
 
 ```bash
 export MODEL_NAME=
@@ -65,7 +65,7 @@ bash run_multi_task.sh
 
   `SUB_TASK` can be in picture below
 
-![image-20221014233118653](https://pic.mathskiller909.com/img/20221027202855.png?x-oss-process=style/nchen909)
+[![Finetuning tasks](https://pic.mathskiller909.com/img/20221027202855.png?x-oss-process=style/nchen909)](https://osspicgo.oss-cn-shanghai.aliyuncs.com/img/20221027202855.png)
 
 | Category | Dataset   | Task              | Sub_task(LANG)                                     | Type           | Category | Description                                                                                                                  |
 | -------- | --------- | ----------------- | -------------------------------------------------- | -------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------- |
