@@ -1,5 +1,6 @@
-WORKDIR="/data/pretrain-attention/CodePrompt"
-HUGGINGFACE_LOCALS="/data/huggingface_models/"
+WORKDIR="Pass-Tuning"
+HUGGINGFACE_LOCALS="Pass-Tuning/data/huggingface_models/"
+
 export PYTHONPATH=$WORKDIR
 
 

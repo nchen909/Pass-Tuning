@@ -1,11 +1,6 @@
-# WORKDIR="/data/pretrain-attention/CodePrompt"
-# #WORKDIR="/wjn/projects/pe_code/CodePrompt"
-# HUGGINGFACE_LOCALS="/data/huggingface_models/"
-# #HUGGINGFACE_LOCALS="/wjn/pre-trained-lm/"
-#WORKDIR="/data/pretrain-attention/CodePrompt"
-#WORKDIR="/wjn/projects/pe_code/CodePrompt"
-WORKDIR="/remote-home/zyyin/Tmp/cn/CodePrompt"
-HUGGINGFACE_LOCALS="/remote-home/zyyin/Tmp/cn/CodePrompt/data/huggingface_models/"
+WORKDIR="Pass-Tuning"
+HUGGINGFACE_LOCALS="Pass-Tuning/data/huggingface_models/"
+
 export PYTHONPATH=$WORKDIR
 
 
