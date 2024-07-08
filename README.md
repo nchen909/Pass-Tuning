@@ -16,7 +16,7 @@ More details are provided in our EMNLP'23 paper and [our paper](https://aclantho
 conda create --name cat python=3.7
 conda activate cat
 pip install -r requirements.txt
-git clone https://github.com/nchen909/CodePrompt
+git clone https://github.com/nchen909/Pass-Tuning
 cd CodePrompt/evaluator/CodeBLEU/parser
 bash build.sh
 cd ../../../
