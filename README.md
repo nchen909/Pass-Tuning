@@ -17,7 +17,7 @@ conda create --name cat python=3.7
 conda activate cat
 pip install -r requirements.txt
 git clone https://github.com/nchen909/Pass-Tuning
-cd CodePrompt/evaluator/CodeBLEU/parser
+cd Pass-Tuning/evaluator/CodeBLEU/parser
 bash build.sh
 cd ../../../
 cp evaluator/CodeBLEU/parser/my-languages.so build/
